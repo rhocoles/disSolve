@@ -9,8 +9,8 @@ The algorithm is based upon the technique of simulated annealing; implemented in
 
 The content of the repository needs to be downloaded into a folder. Supposing the standard python (3.9 or higher) packages are installed, the only additional required python package is [mpi4py](https://mpi4py.readthedocs.io/en/stable/).
 
-The stystem energy is computed using the C++ executable **`morphLF`** that is compiled for macos with GCC as compiler. 
-If you would like to use this work but wish to replace the program **`morphLF`** with a version compiled on your own machine, you need to download the [AlphaMol software repository](https://github.com/pkoehl/AlphaMol) and follow the installation guidlines. You will need to change the program somewhat to compute with the input files used in this algorithm. Please contact me if you are interested in doing this!
+The stystem energy is computed using the C++ executable **`morph_local`** that is compiled for macos with GCC as compiler. 
+If you would like to use this work but wish to replace the program **`morph_local`** with a version compiled on your own machine, you need to download the [AlphaMol software repository](https://github.com/pkoehl/AlphaMol) and follow the installation guidlines. You will need to change the program somewhat to compute with the input files used in this algorithm. Please contact me if you are interested in doing this!
 
 To effectivly intereact with simulation runs (which can take up to a month of computation time) I recommend using **`screen`**, a terminal multiplexer, which allows you to start a session, run your commands, and then detach and reattach to the session later-- which basically means you can check on a simulation conveniently.
 If you are using a unix--like system, screen should be already installed, otherwise consult the [screen documentation](https://www.gnu.org/software/screen/).
