@@ -1,16 +1,16 @@
+import math as m
 import numpy as np
 import random
-#from scipy import optimize
 import decimal as dec
-import math as m
 import sys
 import subprocess
 import os
 
 import simple_functions as simp_func
+import morphometry as mm
 
 def randomOrder(dataList , repetitions = 1):
-    """Returns a shuffled list of all indicies in dataList with repetitions."""
+    """Returns a shuffled list of all indices in dataList with repetitions."""
     
     result=[]
     for i in range(len(dataList)):
@@ -67,23 +67,32 @@ def returnMinimumInNestedListOfFloats(dataList):
                 minimum=dataList[i][j]
     return minimum
 
-def returnLengthOfPointList(self, pointList):
+def returnLengthOfPointList(pointList, openOrClosed):
     """Returns the total distance between the points on the pointList."""
 
     runningTotal = 0
-    if self.configType == "open":
-        print("free energy line returnLengthOfInterpolation you haven't dealt with this yet")
-        quit()
     for i in range(len(pointList)):
-        for j in range(len(pointList[i])):
-            runningTotal+=np.linalg.norm(np.array(pointList[i][j]) - np.array(pointList[i][(j+1)%len(pointList[i])]))
-    #print("total spheres used to compute measures ", sum([len(pointList[i]) for i in range(len(pointList))]))
-    return runningTotal
+        for j in range(len(pointList[i]) - 1):
+            runningTotal+=np.linalg.norm(pointList[i][j] - pointList[i][j+1])
+        if openOrClosed == "closed":
+            runningTotal+=np.linalg.norm(pointList[i][-1] - pointList[i][0])
+    return round(runningTotal, 5)
 
-def returnRadiusOfSphere(self, edgeLength):
-    """Set the sphere radius of the interpolating spheres."""
-    rTube = 1.0
-    return round(m.sqrt(rTube**2 + 0.25*(edgeLength)**2), 5)
+def returnAverageEdgeLengthOfPointList(pointList, openOrClosed):
+    """Returns the average length of the edges per strand of the pointList."""
+
+    result = []
+    for i in range(len(pointList)):
+        edgeLengthTally = 0
+        edgeTally = 0
+        for j in range(len(pointList[i]) - 1):
+            edgeLengthTally+=np.linalg.norm(pointList[i][j] - pointList[i][j+1])
+            edgeTally+=1
+        if openOrClosed == "closed":
+            edgeLengthTally+=np.linalg.norm(pointList[i][-1] - pointList[i][0])
+            edgeTally+=1
+        result.append(round(edgeLengthTally/float(edgeTally), 5))
+    return result
 
 def returnEmbeddedMeasures(pointList, radius, endCaps=True):
     """
@@ -185,29 +194,201 @@ def makeFilFile(pointList,fileName, radius):
         f1.write(str(dec.Decimal(str(round(pointList[i][0],5))))+' '+str(dec.Decimal(str(round(pointList[i][1],5))))+' '+str(dec.Decimal(str(round(pointList[i][2],5))))+' '+str(dec.Decimal(str(radius)))+'\n')
     f1.close()
     return None
+#
+#def makeObjFile(pointList, fileName):
+#    """
+#    Function: makeObjFile
+#    ---------------------------------------------------------------------------------------------------------------------
+#    writes the point list to .fil file as input for Roland's program
+#    nested list of points
+#    r float
+#    fileName string
+#    """
+#    f1 = open('./inputFiles/'+str(fileName)+'.obj', 'w')
+#    for i in range(len(pointList)):
+#        f1.write('v '+str(dec.Decimal(str(round(pointList[i][0],5))))+' '+str(dec.Decimal(str(round(pointList[i][1],5))))+' '+str(dec.Decimal(str(round(pointList[i][2],5))))+'\n')
+#    f1.close()
+#    return None
 
-def makeObjFile(pointList, fileName):
-    """
-    Function: makeObjFile
-    ---------------------------------------------------------------------------------------------------------------------
-    writes the point list to .fil file as input for Roland's program
-    nested list of points
-    r float
-    fileName string
-    """
-    f1 = open('./inputFiles/'+str(fileName)+'.obj', 'w')
-    for i in range(len(pointList)):
-        f1.write('v '+str(dec.Decimal(str(round(pointList[i][0],5))))+' '+str(dec.Decimal(str(round(pointList[i][1],5))))+' '+str(dec.Decimal(str(round(pointList[i][2],5))))+'\n')
-    f1.close()
-    return None
+class TubularGeometry:
+    """ TubularGeometry object, describes the functionality of a tube given a curve. The curve is defined and mutated via the curve_object """
+        
+    def __init__(self, overlapRatio, eta, curve_object):
 
+        self.curve_object = curve_object
+    
+        #compute the functions used to define the linear combination 
+        if eta>0:
+            f1 = round(eta*(1 + eta + eta**2 - pow(eta, 3))/pow(1 - eta, 3), 5)
+            f2 = round(eta*((1 + 2*eta + 8*eta**2 - 5*pow(eta, 3))/(3*pow(1 - eta, 3)) + m.log(1 - eta)/(3*eta)), 5)
+            f3 = round(eta*((4 - 10*eta + 20*eta**2 - 8*pow(eta, 3))/(3*pow(1- eta, 3)) + 4*m.log(1 - eta)/(3*eta)),5)
+            f4 = round(eta*((-4 + 11*eta - 13*eta**2 + 4*pow(eta, 3))/(3*pow(1 - eta, 3)) - 4*m.log(1 - eta)/(3*eta)), 5)
+        elif alpha>0:
+            f1 = 1.0
+            f2 = alpha
+            f3 = 0
+            f4 = 0
+        else:
+            f1 = 1.0
+            f2 = 0
+            f3 = 0
+            f4 = 0
+    
+        self.f1_f2_f3_f4 = [f1, -1*f2, f3, f4]
+
+        #set scale invariant tube dimensions, the radius R may be updated once the edgelength distance between points of the linear polygon is known
+        self.rTube = 1.0
+        self.r_s_star = overlapRatio
+
+        #set tube dimensions depending on the density of vertices on the curve
+        self.set_radii()
+
+        #compute coefficients used to define energy as linear combination of measures
+        self.set_coefficients()
+
+
+    def set_radii(self):
+        """"Sets the input sphere radius used to evaluate the energy which depends on the edgeLength spacing of the curve"""
+        
+        if not hasattr(self.curve_object, 'edgeLength'):
+            print("write a method to compute the edgeLength")
+            return None
+
+        self.R = round(m.sqrt(self.rTube + 0.25*self.curve_object.edgeLength**2), 5)
+        self.r_s = round(m.sqrt(self.rTube + 0.25*self.curve_object.edgeLength**2)*self.r_s_star, 5)  
+        self.input_R = round(m.sqrt(self.rTube + 0.25*self.curve_object.edgeLength**2)*(1 + self.r_s_star), 5)
+        return None
+
+    def set_coefficients(self):
+        """"Sets the coefficients used to define the specific linear combination of measures defining the energy"""
+
+        if not hasattr(self, 'r_s'):
+            self.set_radii() 
+
+        f1, f2, f3, f4 = self.f1_f2_f3_f4 #f2 is already set as negative
+
+        self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
+        #print("WARNING still missing a factor 3/4pi or something")
+        return None
+
+    def evaluate_embedded_measures(self):
+        """ Function computes the embedded measures and saves them as variables of the curve"""
+        
+        if self.curve_object.configType=='open':
+            endCaps=True
+        else:
+            endCaps=False
+
+        self.V_0, self.A_0, self.C_0, self.X_0 = returnEmbeddedMeasures(self.curve_object.curve_vertices, self.input_R, endCaps=endCaps)
+        return None
+        
+    #TODO test the energy computation  method with a torus in. 
+    def evaluate_measures(self):
+        """Function computes the measures of the curveData point list with balls of radius input_R """
+    
+        pointList = [pt for subList in self.curve_object.curve_vertices for pt in subList]
+        #makeFilFile(pointList, 'input', self.input_R)
+
+        #call morph with the input files
+       # proc = subprocess.Popen('./morph_local ./inputFiles/input.fil', shell=True)
+       # proc.wait()
+       #     
+       # #read line
+       # measures = []
+       # with open("./data.txt", "r") as f1:
+       #     line = f1.readline().split('  ')
+       #     measures=[float(line[l]) for l in range(4)]
+       #     f1.close()
+       # 
+       # self.V, self.A, self.C, self.X = measures
+        self.V, self.A, self.C, self.X=mm.morph_(pointList, self.input_R)
+
+        #delete file data.txt and input file
+        #os.remove("data.txt")
+        #os.remove("./inputFiles/input.fil")
+
+        return None
+
+    def evaluate_normalised_energy(self):
+        """Computes the normalised energy"""
+        
+        return np.dot(np.array(self.coefficients), np.array([self.V - self.V_0, self.A - self.A_0, self.C - self.C_0, self.X - self.X_0]))/self.curve_object.length
+
+    def evaluate_energy_difference(self, neighbouring_curve_vertices):
+        """Function computes the measures of the neighbouringCurveVertices with the radius input_R as associated to the class variable. 
+           The energy of self is compared to the energy of a geeometry who's curve_object would produce the curve_vertices given by neighbouring_curve_vertices."""
+
+        pointList = [pt for subList in neighbouring_curve_vertices for pt in subList]
+       # makeFilFile(pointList, 'input', self.input_R)
+
+       # #call morph with the input files
+       # proc = subprocess.Popen('./morph_local ./inputFiles/input.fil', shell=True)
+       # proc.wait()
+       #     
+       # #read line
+       # measures = []
+       # with open("./data.txt", "r") as f1:
+       #     line = f1.readline().split('  ')
+       #     measures=[float(line[l]) for l in range(4)]
+       #     f1.close()
+
+       # #delete file data.txt and input file
+       # os.remove("data.txt")
+       # os.remove("./inputFiles/input.fil")
+        measures = mm.morph_(pointList, self.input_R)
+        
+        if self.curve_object.geometryType == "ThreadedBeads":
+            #deltaE = (tmpE - E)
+
+            deltaE = np.dot(np.array(self.coefficients), np.array(measures) - np.array([self.V, self.A, self.C, self.X]))
+
+            return (deltaE, measures)
+
+        elif self.curve_object.geometryType == "Biarcs":
+            #deltaE = (tmpE - tmpE_0)/tmpL - (E - E_0)/L
+
+            embedded_measures = returnEmbeddedMeasures(neighbouring_curve_vertices, self.input_R)
+            length = returnLengthOfPointList(neighbouring_curve_vertices, self.curve_object.configType)
+            neighbouring_normalised_energy = (np.dot(np.array(self.coefficients), np.array(measures) - np.array(embedded_measures)))/length
+            
+            deltaE = neighbouring_normalised_energy - self.evaluate_normalised_energy()
+            
+            return (deltaE, (measures, embedded_measures, length))    
+        else:
+            print("unknown geometry type error in computing energy difference")
+            return None
+                
+
+    def update_geometry(self, data, curve_vertices, size_measures):
+        """updates self with attributes of geometry.
+           measures, embedded_measures = [], length
+        """
+        
+        self.curve_object.data = data
+        self.curve_object.curve_vertices = curve_vertices
+
+        if self.curve_object.geometryType == "ThreadedBeads":
+            #measures = size_measures
+            self.V, self.A, self.C, self.X = size_measures
+
+        elif self.curve_object.geometryType == "Biarcs":
+            measures, embedded_measures, length  = size_measures
+            self.V, self.A, self.C, self.X = measures
+            self.V_0, self.A_0, self.C_0, self.X_0 = embedded_measures
+            self.curve_object.length = length
+    
+        return None
+    
 
 class Biarcs:
     """ Geometry class of biarcs, this is a set of isoceles triangles sharing common verticies and parallel short edges with adjacent triangles """ 
 
     # here you can put class variables shared by all instances
     
-    def __init__(self,  fileName=''):
+    def __init__(self,  fileName='', sphereDensity=3, edgeLength=0):
+
+        self.geometryType = "Biarcs"
+
         if fileName=='':
             self.data = []
         else:
@@ -231,31 +412,29 @@ class Biarcs:
                 if len(strand)>0:
                     self.data.append(strand)
 
-        self.ropelength = 0.0    # instance variables unique to each instance, these values are then changed in a method
-        self.length = 0.0
-        self.configType = "closed"
-        self.arcPairs = []
-        self.edgeWeights = []
-        self.sphereCount = [3*len(self.data[i]) for i in range(len(self.data))]#number of spheres per stand to interpolate the curve
+        self.configType = "closed" # if (openOrClosed) else "closed" # open biarc curve is not implemented
 
-    def set_ropelength(self, value):
-        self.ropelength = value
-
-    def evaluate_curve_length(self):
-        """Evaluates the length of the curve and saves in the variable length."""
+        self.numberOfCurveVerticesPerStrand = [sphereDensity*len(self.data[i]) for i in range(len(self.data))]
         
-        result = []
-        runningTotal = 0
-        for i in range(len(self.data)):
-            result.append(runningTotal)
-            for j in range(len(self.data[i])):
-                (b0,b1,b2) = self.data[i][j]
-                runningTotal+= simp_func.returnArcLengthForBezierTriangle(b0, b1, b2)
-            result[-1] = runningTotal - result[-1]
-        self.length = runningTotal
-        #print(result)
-        return result
-    
+        self.curve_vertices = self.evaluate_curve_vertices(self.data)
+   
+        if edgeLength > 0:
+            self.edgeLength = edgeLength
+        else:
+            self.edgeLength = round(sum(returnAverageEdgeLengthOfPointList(self.curve_vertices, self.configType))/len(self.data), 5)
+
+        self.length = returnLengthOfPointList(self.curve_vertices, self.configType)
+
+        self.arcPairs = self.evaluate_arc_pairs_to_be_checked()
+
+        self.edgeWeights = self.store_edge_weight_information()
+
+        self.upper_bound_closest_self_distance = 2.0
+
+        nMax = int(0.3*min([len(self.data[i]) for i in range(len(self.data))]))
+
+        self.index_intervals_to_be_rotated = self.generate_index_intervals_to_be_rotated(nMax)
+            
     def recenter_the_curve(self):
         """Curve is translated so that the centre of mass is at the origin"""
 
@@ -285,24 +464,18 @@ class Biarcs:
                 strand.append(tri1)
             self.data[i]=strand
 
-    def rescale_curve_length_to_ropelength(self, ropelength=10.0, force=False):
-        """The curve data points are scalar multiplied such that the length equals ropelength if the length was less than ropelength, if force=True then also if the length is larger than ropelength."""
+    def rescale_geometry(self, scalingFactor):
+        """The curve data points are multiplied by scalingFactor."""
 
-        if self.ropelength==0:
-            print("ropelength is set to ", ropelength)
-            self.set_ropelength(ropelength)
-
-        self.evaluate_curve_length()
-
-        if force or self.length<self.ropelength:
-            scalingFactor = self.ropelength/self.length
-            for i in range(len(self.data)):
-                strand = []
-                for j in range(len(self.data[i])):
-                    (a0, a1, a2) = self.data[i][j]
-                    strand.append((tuple(np.array(a0)*scalingFactor), tuple(np.array(a1)*scalingFactor), tuple(np.array(a2)*scalingFactor)))
-                self.data[i] = strand
-            self.evaluate_curve_length()
+        for i in range(len(self.data)):
+            strand = []
+            for j in range(len(self.data[i])):
+                (a0, a1, a2) = self.data[i][j]
+                strand.append((tuple(np.array(a0)*scalingFactor), tuple(np.array(a1)*scalingFactor), tuple(np.array(a2)*scalingFactor)))
+            self.data[i] = strand
+        #update 
+        self.curve_vertices = self.evaluate_curve_vertices(self.data)
+        self.length = returnLengthOfPointList(self.curve_vertices, self.configType)
 
     def evaluate_arc_pairs_to_be_checked(self, radius = 1.0):
         """Appends an integer pair ((i,j), (l,k)) to the list arcPairs if the corresponding arcs have an arc length separation of at least pi."""
@@ -311,21 +484,22 @@ class Biarcs:
         indexPrevJ = lambda ind : (ind[1] - 1) + len(self.data[ind[0]])*(ind[1]==0)
         tightestCurve = lambda edgeLength: 2*radius*np.arctan(edgeLength)
 
+        result = []
         for i in range(len(self.data)):
             for j in range(len(self.data[i])):
-                indiciesToSkip = [(i,j)]
+                indicesToSkip = [(i,j)]
                 runningTotal = 0
                 s = j
                 while runningTotal < m.pi:
                     s = indexNextJ((i,s))
                     runningTotal+=tightestCurve(np.linalg.norm(np.array(self.data[i][s][0]) - np.array(self.data[i][s][1])))
-                    indiciesToSkip.append((i,s))
+                    indicesToSkip.append((i,s))
                 runningTotal = 0
                 s = j
                 while runningTotal < m.pi:
                     s = indexPrevJ((i,s))
                     runningTotal+=tightestCurve(np.linalg.norm(np.array(self.data[i][s][0]) - np.array(self.data[i][s][1])))
-                    indiciesToSkip.insert(0, (i,s))
+                    indicesToSkip.insert(0, (i,s))
 
                 for l in range(i, len(self.data)):#interested only in unordered pairs
                     if l==i:
@@ -333,17 +507,14 @@ class Biarcs:
                     else:
                         stIndex = 0
                     for k in range(stIndex, len(self.data[l])):
-                        if (l,k) in indiciesToSkip:
+                        if (l,k) in indicesToSkip:
                             continue
-                        self.arcPairs.append(((i,j), (l,k)))
+                        result.append(((i,j), (l,k)))
+        return result
 
     def store_edge_weight_information(self):
         """Stores the scalar value l0/(l0 + l1) where l0+l1 is the length of the two parallel shorts sides of adjacent triangles with l1 being the edge of the next triangle in clockwise rotation."""
-
-        if self.configType=='open':
-            print("to do, edge weights list will be missing the first and last entries-->or just the last?")
-            return None
-
+        result = []
         for i in range(len(self.data)):
             strand = []
             for j in range(len(self.data[i])):
@@ -351,48 +522,57 @@ class Biarcs:
                 l1 = np.linalg.norm(np.array(self.data[i][(j+1)%len(self.data[i])][1]) - np.array(self.data[i][(j+1)%len(self.data[i])][0]))
                 #print(l0, l1, l0+l1, "l0 + l1 = dl")
                 strand.append(l0/(l0+l1))
-            self.edgeWeights.append(strand)
+            result.append(strand)
+        return result
 
     
-    def check_new_positions_do_not_cause_overlaps(self, radius, epsilon, newTrianglePositions, indicies):
-        """Return True if the curve, defined by self with the newTrianglePositions of triangles given at index locations indicies, is such that distinct arcs are further than 2radius apart."""
-        closestDistanceBound = 2.*radius
+    def check_new_positions_do_not_cause_overlaps(self, closestDistanceBound, epsilon, newTrianglePositions, indices):
+        """Return True if the curve, defined by self with the newTrianglePositions of triangles given at index locations indices, is such that distinct arcs are further than 2radius apart."""
         #later you need to change the curve.data set so that it is a set of numpy arrays
         for ((i,j), (l,k)) in self.arcPairs:
-            if (i,j) in indicies[1:-1:]:
-                if (l,k) in indicies[1:-1:]:#both arc pairs belong to the rotated group
+            if (i,j) in indices[1:-1:]:
+                if (l,k) in indices[1:-1:]:#both arc pairs belong to the rotated group
                     continue
                 #check distance
-                (a0, a1, a2) = newTrianglePositions[indicies.index((i,j))]
+                (a0, a1, a2) = newTrianglePositions[indices.index((i,j))]
                 a = np.array(a0 + a1 + a2).reshape(3,3)
-                if (l,k) in [indicies[0], indicies[-1]]:#second pair belongs to a join arc, first pair to rotated arc
-                    (b0, b1, b2) = newTrianglePositions[indicies.index((l,k))]
+                if (l,k) in [indices[0], indices[-1]]:#second pair belongs to a join arc, first pair to rotated arc
+                    (b0, b1, b2) = newTrianglePositions[indices.index((l,k))]
                 else:#second pair is unmoved, first pair rotated.
                     (b0, b1, b2) = self.data[l][k]
                 b = np.array(b0 + b1 + b2).reshape(3,3) 
                 if simp_func.cDistArcToArcWithinErrorBound(a, b, closestDistanceBound, epsilon):#returns 1 if dl2l + error_a + error_b < closestDistanceBound or dl2l + error_a + error_b < closestDistanceBound and error_a + error_b < epsilon
                     return 0
-            elif (i,j) in [indicies[0], indicies[-1]]:#first pair belongs to a join arc, second pair to any arc
-                (a0, a1, a2) = newTrianglePositions[indicies.index((i,j))]
+            elif (i,j) in [indices[0], indices[-1]]:#first pair belongs to a join arc, second pair to any arc
+                (a0, a1, a2) = newTrianglePositions[indices.index((i,j))]
                 a = np.array(a0 + a1 + a2).reshape(3,3)
-                if (l,k) in indicies:
-                    (b0, b1, b2) = newTrianglePositions[indicies.index((l,k))]
+                if (l,k) in indices:
+                    (b0, b1, b2) = newTrianglePositions[indices.index((l,k))]
                 else:
                     (b0, b1, b2) = self.data[l][k]
                 b = np.array(b0 + b1 + b2).reshape(3,3) 
                 if simp_func.cDistArcToArcWithinErrorBound(a, b, closestDistanceBound, epsilon):#returns 1 if dl2l + error_a + error_b < closestDistanceBound or dl2l + error_a + error_b < closestDistanceBound and error_a + error_b < epsilon
                     return 0
-            elif (l,k) in indicies:#first pair is unmoved, second pair join or rotated arc
+            elif (l,k) in indices:#first pair is unmoved, second pair join or rotated arc
                 (a0, a1, a2) = self.data[i][j]
                 a = np.array(a0 + a1 + a2).reshape(3,3)
-                (b0, b1, b2) = newTrianglePositions[indicies.index((l,k))]
+                (b0, b1, b2) = newTrianglePositions[indices.index((l,k))]
                 b = np.array(b0 + b1 + b2).reshape(3,3) 
                 if simp_func.cDistArcToArcWithinErrorBound(a, b, closestDistanceBound, epsilon):#returns 1 if dl2l + error_a + error_b < closestDistanceBound or dl2l + error_a + error_b < closestDistanceBound and error_a + error_b < epsilon
                     return 0
         return 1
 
+    def generate_index_intervals_to_be_rotated(self, Nmax):
+        """ generates a list of index intervals, this list is shuffled and an interval list is drawn at random. if the curve is open intervals containing the end vertices to be extended with a dummy vertex are included"""   
+        
+        indexList = []
+        for i in range(len(self.data)):
+            for j in range(len(self.data[i])):
+                for n in range(3, Nmax + 1):
+                    indexList.append([(i, (j + k)%len(self.data[i])) for k in range(n)])
+        return indexList
 
-    def move(self, radius, epsilon, dMax=0.015, Nmax=0):
+    def move(self, dMin = 0.0008, dMax=0.015):
         """A new position of the curve is evaluated close to the original position such that the tube surrounding the curve of radius radius is embedded
 
         arguments:
@@ -406,31 +586,26 @@ class Biarcs:
         return:
         list of the same stucture as self.data, integer equally the number of attempts, float distance moved
         """ 
+        indexNextJ = lambda ind : (ind[1] + 1)%len(self.data[ind[0]])
+        indexPrevJ = lambda ind : (ind[1] - 1) + len(self.data[ind[0]])*(ind[1]==0)
+
         dAngle = lambda  x, y: 2*np.arcsin(np.clip(0.5*y/x, 0, 1))
         angleChoice = lambda x : [x, 2*m.pi - x]
-        indexNext = lambda ind : (ind[0], (ind[1] + 1)%len(self.data[ind[0]]))
-        randomStartIndex = randomOrder(self.data, repetitions = 5)
-        while len(randomStartIndex)>0:
-            stIndex = randomStartIndex.pop()
-            indicies= [stIndex]
-            N = np.random.randint(3, 4 + Nmax)
-            while len(indicies)<N:#you need to make sure Nmax + 4 < half the number of arcs in the smallest strand
-                indicies.append(indexNext(indicies[-1]))
-                #if shape.configType=='open' and indicies[-1]==(stIndex[0], len(stIndex[0])-1):#this is probably wrong
-                if self.configType=='open':
-                    print("move to dos")
-                    quit()
+        random.shuffle(self.index_intervals_to_be_rotated)
+        numberOfTries = 0
+        while numberOfTries < len(self.index_intervals_to_be_rotated):
+            indices = self.index_intervals_to_be_rotated[numberOfTries]
 
             #define the transformation
-            normalVector = np.array(self.data[indicies[-1][0]][indicies[-1][1]][1]) - np.array(self.data[indicies[0][0]][indicies[0][1]][1])
+            normalVector = np.array(self.data[indices[-1][0]][indices[-1][1]][1]) - np.array(self.data[indices[0][0]][indices[0][1]][1])
             normalVector = normalVector/np.linalg.norm(normalVector)
 
             rCircle = [0]
             posVector= [np.zeros(3)]
             dotProd = [0]
-            for n in range(len(indicies)-1):
+            for n in range(len(indices)-1):
                 #dataList[i][j] = (b0, b1, b2) we want to move b1
-                posVector.append(posVector[-1] + np.array(self.data[indicies[n+1][0]][indicies[n+1][1]][1]) - np.array(self.data[indicies[n][0]][indicies[n][1]][1]))
+                posVector.append(posVector[-1] + np.array(self.data[indices[n+1][0]][indices[n+1][1]][1]) - np.array(self.data[indices[n][0]][indices[n][1]][1]))
                 dotProd.append(np.dot(posVector[-1], normalVector))
                 rCircle.append(m.sqrt(np.clip(np.dot(posVector[-1], posVector[-1]) - dotProd[-1]**2,0, 100)))
 
@@ -438,54 +613,53 @@ class Biarcs:
             if rc <0.00025:
                 continue
             d_upperBound = dMax
-            while d_upperBound>0.001:
-                d = np.random.uniform(0.001, d_upperBound)
+            while d_upperBound>1000*dMin:
+                d = np.random.uniform(dMin, d_upperBound)
                 angle = angleChoice(dAngle(rc, d))
                 random.shuffle(angle)
         
                 while len(angle)>0:
                     a = angle.pop(0)
                     #for each point in the index list other than the end nodes which are stationary rotate the point by angle about the normal vector
-                    newPos = [np.array(self.data[indicies[0][0]][indicies[0][1]][1])]
-                    for n in range(len(indicies)-1):
-                        newPos.append(np.array(self.data[indicies[0][0]][indicies[0][1]][1]) + simp_func.rotate(posVector[n+1], a, normalVector))
+                    newPos = [np.array(self.data[indices[0][0]][indices[0][1]][1])]
+                    for n in range(len(indices)-1):
+                        newPos.append(np.array(self.data[indices[0][0]][indices[0][1]][1]) + simp_func.rotate(posVector[n+1], a, normalVector))
                     
                     newTrianglePositions = []
                     
                     #check first if the local radius of curvature for the join arcs is larger than radius
-                    b0 = self.data[indicies[0][0]][indicies[0][1]][0]
-                    b1 = self.data[indicies[0][0]][indicies[0][1]][1]
-                    b2 = tuple(np.array(self.data[indicies[0][0]][indicies[0][1]][1]) + self.edgeWeights[indicies[0][0]][indicies[0][1]]*(newPos[1] - np.array(self.data[indicies[0][0]][indicies[0][1]][1])))
+                    b0 = self.data[indices[0][0]][indices[0][1]][0]
+                    b1 = self.data[indices[0][0]][indices[0][1]][1]
+                    b2 = tuple(np.array(self.data[indices[0][0]][indices[0][1]][1]) + self.edgeWeights[indices[0][0]][indices[0][1]]*(newPos[1] - np.array(self.data[indices[0][0]][indices[0][1]][1])))
                     #check curvature constraint
-                    if simp_func.returnCircleRadiusForBezierTriangle(b0, b1, b2)<radius:
+                    if simp_func.returnCircleRadiusForBezierTriangle(b0, b1, b2)<1.0:
                         continue
                     newTrianglePositions.append((b0, b1, b2))
                     
-                    bb0 = tuple(np.array(self.data[indicies[-1][0]][indicies[-1][1]][1]) - (1 - self.edgeWeights[indicies[-2][0]][indicies[-2][1]])*(np.array(self.data[indicies[-1][0]][indicies[-1][1]][1]) - newPos[-2]))
-                    bb1 = self.data[indicies[-1][0]][indicies[-1][1]][1]
-                    bb2 = self.data[indicies[-1][0]][indicies[-1][1]][2]
-                    if simp_func.returnCircleRadiusForBezierTriangle(bb0, bb1, bb2)<radius:
+                    bb0 = tuple(np.array(self.data[indices[-1][0]][indices[-1][1]][1]) - (1 - self.edgeWeights[indices[-2][0]][indices[-2][1]])*(np.array(self.data[indices[-1][0]][indices[-1][1]][1]) - newPos[-2]))
+                    bb1 = self.data[indices[-1][0]][indices[-1][1]][1]
+                    bb2 = self.data[indices[-1][0]][indices[-1][1]][2]
+                    if simp_func.returnCircleRadiusForBezierTriangle(bb0, bb1, bb2)<1.0:
                         continue
                     
                     n = 1
-                    while n < len(indicies)-1:
+                    while n < len(indices)-1:
                         b0 = b2
                         b1 = tuple(newPos[n])
-                        b2 = tuple(newPos[n] + self.edgeWeights[indicies[n][0]][indicies[n][1]]*(newPos[n+1] - newPos[n])) 
+                        b2 = tuple(newPos[n] + self.edgeWeights[indices[n][0]][indices[n][1]]*(newPos[n+1] - newPos[n])) 
                         newTrianglePositions.append((b0, b1, b2))
                         n+=1
                     
                     newTrianglePositions.append((bb0, bb1, bb2))
                
                     #check the overlapping arc condition
-                    if self.check_new_positions_do_not_cause_overlaps(radius, epsilon, newTrianglePositions, indicies):
-                        return d, indicies, newTrianglePositions
+                    if self.check_new_positions_do_not_cause_overlaps(self.upper_bound_closest_self_distance, 0.01, newTrianglePositions, indices):
+                        return d, indices, newTrianglePositions
 
-                d_upperBound=0.9*d_upperBound
+                d_upperBound = 0.15*d_upperBound
 
-        print("All Points Are Jammed!")
-        return 1
-
+            numberOfTries+=1
+              
     def make_curve_polyFile(self, fileLocation, fileName, pointsPerArcInterpolation=3, resolveArcs=False):
         """Each arc is interpolated with pointsPerArcInterpolation points and the resulting set of concatenated points is written as a .poly file to be read with Houdini"""
 
@@ -581,58 +755,6 @@ class Biarcs:
             result.append(strand)
         return result
 
-    def generate_all_arc_to_arc_distances_faffing(self, epsilon=0.0025):
-        """Creates list of floats. Each float is the closest distance of an arc to the arc at that index, such that the arc contains is a critical point of the distance function retricted to the curve."""
-
-        for ((i,j), (l,k)) in [((0,7), (0,15)), ((0,4), (0,8))]:
-            #da2a = simp_func.cReturnDistArcToArcBounds(np.array(self.data[i][j]), np.array(self.data[l][k]), epsilon)
-            a = np.array(self.data[i][j][0] + self.data[i][j][1] + self.data[i][j][2]).reshape(3,3)
-            b = np.array(self.data[l][k][0] + self.data[l][k][1] + self.data[l][k][2]).reshape(3,3)
-            dl2l = simp_func.cLineToLineDistance(a, b)
-            dl2l_old = simp_func.returnLineToLineDistance((self.data[i][j][0], self.data[i][j][2]), (self.data[l][k][0], self.data[l][k][2]))
-            tri_list = [a]
-            eps, om = simp_func.returnCurveToLineErrorFromBezierTriangle(self.data[i][j])
-            error = eps
-            print((i,j), eps, om)
-            while eps > epsilon:
-                tmp = []
-                for tri in tri_list:
-                    tmp+=simp_func.cBisectBezierTraingle(a)
-                eps = eps/(2 + m.sqrt(2*(1 + om)))
-                om = m.sqrt(0.5*(1 + om))
-                tri_list = tmp
-            print((i,j), (eps, om), len(tri_list) )
-            tri_list = [b]
-            eps, om = simp_func.returnCurveToLineErrorFromBezierTriangle(self.data[l][k])
-            error+=eps
-            print((l,k), eps, om)
-            while eps > epsilon:
-                tmp = []
-                for tri in tri_list:
-                    tmp+=simp_func.cBisectBezierTraingle(b)
-                eps = eps/(2 + m.sqrt(2*(1 + om)))
-                om = m.sqrt(0.5*(1 + om))
-                tri_list = tmp
-            print((l,k), (eps, om), len(tri_list) )
-            da2a= simp_func.cReturnDistArcToArcBounds(a, b, epsilon)
-            print(da2a)
-            print("(", dl2l - error, " , ", dl2l + error , ")")
-            print("d(a",(i, j),", a",(l, k),") =? "," dl2l = ", dl2l, dl2l_old, "\n" )
-            #print("d(a",(i, j),", a",(l, k),") = ", a, b," dl2l = ", dl2l,"\n" )
-        return None
-
-    def generate_all_arc_to_arc_distances(self, epsilon=0.0025):
-        """Creates list of floats. Each float is the closest distance of an arc to the arc at that index, such that the arc contains is a critical point of the distance function retricted to the curve."""
-
-        for ((i,j), (l,k)) in self.arcPairs:
-            #da2a = simp_func.cReturnDistArcToArcBounds(np.array(self.data[i][j]), np.array(self.data[l][k]), epsilon)
-            a = np.array(self.data[i][j][0] + self.data[i][j][1] + self.data[i][j][2]).reshape(3,3)
-            b = np.array(self.data[l][k][0] + self.data[l][k][1] + self.data[l][k][2]).reshape(3,3)
-            da2a= simp_func.cReturnDistArcToArcBounds(a, b, epsilon)
-            print("d(a",(i, j),", a",(l, k),") =",da2a, "\n" )
-            #print("d(a",(i, j),", a",(l, k),") = ", a, b," dl2l = ", dl2l,"\n" )
-        return None
-
     def c_generate_closest_arc_to_arc_distances(self, epsilon=0.0025, withInfo=False):
         """Creates list of floats. Each float is the closest distance of an arc to the arc at that index, such that the arc contains is a critical point of the distance function retricted to the curve."""
 
@@ -659,80 +781,40 @@ class Biarcs:
             print('\n')
         return result
 
-    def generate_closest_arc_distances(self, epsilon=0.0025, withInfo = False):
-        """Creates list of floats. Each float is the closest distance of an arc to the arc at that index, such that the arc contains is a critical point of the distance function retricted to the curve."""
-
-        if withInfo:
-            print('\n')
-        result = []
-        for i in range(len(self.data)):
-            strand = []
-            for j in range(len(self.data[i])):
-                d = 1000.0
-                ind = (0,0)
-                for l in range(len(self.data)):
-                    for k in range(len(self.data[l])):
-                        error_a, omega_a = simp_func.returnCurveToLineErrorFromBezierTriangle(self.data[i][j])
-                        if (l,k) in [(i, j - 1 + len(self.data[i])*(j==0)), (i,j), (i, (j+1)%len(self.data[i]))]:
-                            continue
-                        error_b, omega_b =  simp_func.returnCurveToLineErrorFromBezierTriangle(self.data[l][k])
-                        trianglePairsToCheck = [(self.data[i][j], self.data[l][k])]
-                        while epsilon < error_a + error_b:
-                            trianglePairsToBisect = []
-                            while len(trianglePairsToCheck)>0:
-                                ((a0,a1,a2), (b0,b1,b2)) = trianglePairsToCheck.pop()
-                                if simp_func.doesNotContainASingleCriticalPoint(a0, a2, (b0,b1,b2)):
-                                    continue
-                                trianglePairsToBisect.append(((a0,a1,a2), (b0,b1,b2)))
-                            if len(trianglePairsToBisect)==0:
-                                break
-                            trianglePairsToCheck = simp_func.bisectAllTrianglePairsInList(trianglePairsToBisect)
-                            #evaluate the new error term
-                            error_a = error_a/(2 + m.sqrt(2*(1 + omega_a)))
-                            error_b = error_b/(2 + m.sqrt(2*(1 + omega_b)))
-                            omega_a = 0.5*m.sqrt(0.5*(1 + omega_a))
-                            omega_b = 0.5*m.sqrt(0.5*(1 + omega_b))
-                        #print(error_a + error_b, len(trianglePairList))
-                        while len(trianglePairsToCheck)>0:
-                            ((a0,a1,a2), (b0,b1,b2)) = trianglePairsToCheck.pop()
-                            dtmp = simp_func.returnLineToLineDistance((a0, a2), (b0, b2)) - error_a - error_b #dArcToArc is a least as large as this number
-                            if dtmp<d:
-                                d = dtmp
-                                ind = (l,k)
-                if withInfo:
-                    print((i,j), ind, d)
-                strand.append(d)
-            result.append(strand)
-        if withInfo:
-            print('\n')
-        return result
-    
     def check_reach(self, withInfo=False):
         """Function returns the minimum arc radius and half the minimum distance of the closest arc to each arc along the curve."""
 
-        return (returnMinimumInNestedListOfFloats(self.generates_list_arc_radii()), returnMinimumInNestedListOfFloats(self.generate_closest_arc_distances(withInfo=withInfo)), returnMinimumInNestedListOfFloats(self.c_generate_closest_arc_to_arc_distances(withInfo=withInfo)))
+        return (returnMinimumInNestedListOfFloats(self.generates_list_arc_radii()), returnMinimumInNestedListOfFloats(self.c_generate_closest_arc_to_arc_distances(withInfo=withInfo)))
 
-    def make_point_interpolation(self, enlarge=False):
+    def evaluate_curve_length(self, geometryData):
+        """Evaluates the length of each strand of the curve"""
+        
+        result = []
+        for i in range(len(geometryData)):
+            lengthOfStrand = 0
+            for j in range(len(geometryData[i])):
+                (b0,b1,b2) = geometryData[i][j]
+                lengthOfStrand+= simp_func.returnArcLengthForBezierTriangle(b0, b1, b2)
+            result.append(lengthOfStrand)
+        return result
+
+    def evaluate_curve_vertices(self, geometryData):
         """Returns a nested list of points spaced such that the arclength separation between points along the curve self is equal."""
 
-        strandLengths = self.evaluate_curve_length()
+        strandLengths = self.evaluate_curve_length(geometryData)
         result = []
-        for i in range(len(self.data)):
-            x = strandLengths[i]/float(self.sphereCount[i])#target sphere separation
+        for i in range(len(geometryData)):
+            x = strandLengths[i]/float(self.numberOfCurveVerticesPerStrand[i])#target sphere separation
             strand = []
-            N = self.sphereCount[i]
+            N = self.numberOfCurveVerticesPerStrand[i]
             
             #pick random start index
-            j = np.random.randint(0, len(self.data[i]))
-            if self.configType == "open":
-                print("sphere interpolation to do")
-                quit()
-            else:
-                indexList = [k for k in range(j, len(self.data[i]))] + [k for k in range(0, j)]
+            j = np.random.randint(0, len(geometryData[i]))
+            indexList = [k for k in range(j, len(geometryData[i]))] + [k for k in range(0, j)]
             
             restLength = 0
             for j in indexList:
-                (b0,b1,b2)=self.data[i][j]
+                (b0,b1,b2)=geometryData[i][j]
                 #get the relevant information to define the circumcircle
                 t = np.array(b1) - np.array(b0)
                 l = np.linalg.norm(t)
@@ -745,7 +827,7 @@ class Biarcs:
                     tau = restLength
                     deltaTau = x
                     while tau < D:
-                        strand.append(tuple(np.array(b0) + tau*e))
+                        strand.append(np.array(b0) + tau*e)
                         tau+=deltaTau
                     restLength = tau - D
                 else:   
@@ -760,92 +842,27 @@ class Biarcs:
                     tau = restLength/r#caculates the start angle
                     deltaTau = x/r
                     while tau < 2*delta:
-                        strand.append(tuple(np.array(centre) + r*simp_func.rotate(u, tau, normal)))
+                        strand.append(np.array(centre) + r*simp_func.rotate(u, tau, normal))
                         tau+=deltaTau
                     restLength = r*(tau - 2*delta)
             if len(strand)>N:
                 strand.pop(-1)
             if len(strand)!=N:
                 print("changed the number of points ?")
-                print(triangles)
-                print(N, len(strand)+1, np.linalg.norm(np.array(strand[0]) - np.array(strand[-1])))
+                print(N, len(strand)+1, np.linalg.norm(strand[0] - strand[-1]))
                 quit()
             result.append(strand)
 
-        if enlarge:
-            lengthOfPointList = returnLengthOfPointList(self, result)
-            if lengthOfPointList<self.ropelength:
-                scalingFactor = self.ropelength/lengthOfPointList
-                for i in range(len(result)):
-                    strand = []
-                    for j in range(len(result[i])):
-                        strand.append(tuple(np.array(result[i][j])*scalingFactor))
-                result[i] = strand
-
-        #print(lengthOfPointList, self.ropelength/lengthOfPointList, returnLengthOfPointList(self, result))
-
         return result
 
-    length_of_point_interpolation = returnLengthOfPointList
-
-    def set_point_interpolation_sphere_radius(self):
-        return returnRadiusOfSphere(self, self.ropelength/float(sum([self.sphereCount[i] for i in range(len(self.data))])))
-
-    def get_all_the_values_fixed_before_you_start(self, ropelength, forceSphereCount=[], enlarge=False, bisect=False, center=False):
-
-        if enlarge:
-            self.rescale_curve_length_to_ropelength(ropelength=ropelength)
-        else:
-            self.set_ropelength(ropelength)
-            self.evaluate_curve_length()
-    
-        if bisect:
-            self.bisect()
-
-        if center:
-            self.recenter_the_curve()
-
-        self.store_edge_weight_information()
-        #print(curve.edgeWeights)
-        if len(forceSphereCount)==len(self.data):
-            self.sphereCount = forceSphereCount
-        else:#use the convention that forceSphereCount=[#] means use a total of # spheres.
-            if len(forceSphereCount)>0:
-                strandLengths = self.evaluate_curve_length()
-                approximatePointSpacing = self.length/float(forceSphereCount[0])
-                self.sphereCount = [int(strandLengths[i]/approximatePointSpacing) for i in range(len(self.data))]
-            else:
-                self.sphereCount = [3*len(self.data[i]) for i in range(len(self.data))]#number of spheres per stand to interpolate the curve
-        print("Total number of interpolating spheres ",sum([self.sphereCount[i] for i in range(len(self.data))]), "with approximate sphere spacing", self.length/sum(self.sphereCount[i] for i in range(len(self.sphereCount))))
-        
-        #epsilon = (edgeLength/np.sin(np.arctan(edgeLength/rTube)) - rTube)/3.0#tightest curves you need to bisect approximately three times
-        #print("set error margin", epsilon)
-        
-        self.evaluate_arc_pairs_to_be_checked()
-
-    def __copy__(self):
-        """Returns a copy of the object and a number of variables.""" 
-
-        newone = type(self)()
-        #newone.__dict__.update(self.__dict__) -> makes a copy of all the instance variables which may be unnecessary
-        #for item in ['ropelength', 'configType', 'arcPairs', 'edgeWeights', 'sphereCount']: -> this also kind of overkill -> to make the pointList only need sphereCount, configType and poss. ropelength
-        for item in ['ropelength', 'configType', 'sphereCount']:
-            newone.__dict__[item] = self.__dict__[item]
-        return newone
-
-    def update_new_geometry(self, geometry):
-        """updates self with certain attributes of geometry."""
-
-        for item in ['arcPairs', 'edgeWeights']:
-            self.__dict__[item] = geometry.__dict__[item]
-
-
-class ThreadedBeads:
+class ThreadedBeads():
     """ Geometry class of threaded beads, this is a polygonal curve of equal edges.""" 
     
-    prefactors = [0,0,0,0] #do this so that you save an if loop each time you evaluate the energy
 
-    def __init__(self, openOrClosed, fileName='', curveData=[]):
+    def __init__(self, openOrClosed, fileName='', curveData=[], edgeLength = 0):
+
+        self.geometryType = "ThreadedBeads"
+
         if fileName=='':
             if len(curveData)==0:
                 print("You need to initialise the shape of the curve either from a .txt file or from a pointFilaments.pointListName")
@@ -867,16 +884,30 @@ class ThreadedBeads:
                 self.data.append(strand)
 
         self.configType = "open" if (openOrClosed) else "closed" #options are closed or open
+
         self.length = sum(self.compute_length())
 
-        self.deltaStar = self.compute_deltaStar(1.0, self.compute_average_edge_length())
+        if edgeLength > 0:
+            self.edgeLength = edgeLength
+        else:
+            self.edgeLength = self.compute_average_edge_length()
+
+        rTube = 1.0
+
+        self.deltaStar = self.compute_deltaStar(rTube, self.compute_average_edge_length())
+
         self.skippedInteger = m.floor(0.5*m.pi/self.deltaStar)
+
         self.arcPairs = self.evaluate_arc_pairs_to_be_checked(self.skippedInteger)
 
+        self.upper_bound_closest_self_distance = self.compute_upper_bound_closest_self_distance(rTube, self.compute_average_edge_length())
+
         nMax = int(0.3*min([len(self.data[i]) for i in range(len(self.data))]))
+
         self.index_intervals_to_be_rotated = self.generate_index_intervals_to_be_rotated(nMax)
-        self.sphereCount = [len(self.data[i]) for i in range(len(self.data))]
-        
+
+        self.curve_vertices = self.evaluate_curve_vertices(self.data) 
+
 
     def compute_average_edge_length(self):
         """computes the average of all edge lengths for each strand."""
@@ -908,7 +939,7 @@ class ThreadedBeads:
             if self.configType=='closed':
                 runningTotal+=np.linalg.norm(self.data[i][0] - self.data[i][-1]) 
             result[-1] = runningTotal - result[-1]
-        #self.length = runningTotal
+        #self.length = runningTotal -- remeber for the ThreadedBead geometry this is constant.
         return result
 
     def check_equal_edges(self):
@@ -973,16 +1004,16 @@ class ThreadedBeads:
              for i in range(len(self.data)):
                 #print(i, skippedinteger)
                 for j in range(len(self.data[i])):
-                    indiciesToSkip = [(i,j)]
+                    indicesToSkip = [(i,j)]
                     s = 1
                     while s < min(skippedInteger, len(self.data[i]) - j):
-                        indiciesToSkip.append((i,j+s))
+                        indicesToSkip.append((i,j+s))
                         s+=1
                     s = 1
                     while s < min(skippedInteger, j+1):
-                        indiciesToSkip.insert(0, (i,(j-s)))
+                        indicesToSkip.insert(0, (i,(j-s)))
                         s+=1
-                    #print((i, j), indiciestoskip)
+                    #print((i, j), indicestoskip)
 
                     for l in range(i, len(self.data)):#interested only in unordered pairs
                         if l==i:
@@ -990,7 +1021,7 @@ class ThreadedBeads:
                         else:
                             stIndex = 0
                         for k in range(stIndex, len(self.data[l])):
-                            if (l,k) in indiciesToSkip:
+                            if (l,k) in indicesToSkip:
                                 continue
                             tmpList.append(((i,j), (l,k)))
         else:
@@ -1005,7 +1036,7 @@ class ThreadedBeads:
                     while s < skippedInteger:
                         indicesToSkip.insert(0, (i,(j-s) + len(self.data[i])*(s>j)))
                         s+=1
-                    #print((i, j), indiciestoskip)
+                    #print((i, j), indicestoskip)
 
                     for l in range(i, len(self.data)):#interested only in unordered pairs
                         if l==i:
@@ -1021,11 +1052,11 @@ class ThreadedBeads:
     def compute_deltaStar(self, radius, edgeLength):
         return np.arcsin(0.5*edgeLength/m.sqrt(radius**2 + 0.25*edgeLength**2))
 
-    def compute_radius_R(self, radius, edgeLength):
-        return m.sqrt(radius**2 + 0.25*edgeLength**2)
+    def compute_upper_bound_closest_self_distance(self, radius, edgeLength):
+        return 2*m.sqrt(radius**2 + 0.25*edgeLength**2)
         
-    def check_new_positions_do_not_cause_overlaps(self, radius, newPositions, indices):
-        """Return True if the polygonal curve defined by self with the newPositions given at index locations indicies, spheres separated by at least a skippedInteger are at least 2radius apart."""
+    def check_new_positions_do_not_cause_overlaps(self, upper_bound_closest_self_distance, newPositions, indices):
+        """Return True if the polygonal curve defined by self with the newPositions given at index locations indices, spheres separated by at least a skippedInteger are at least 2radius apart."""
 
         for ((i,j), (l,k)) in self.arcPairs:
             if (i,j) in indices[1:-1:]:
@@ -1034,7 +1065,7 @@ class ThreadedBeads:
                 #check distance
                 p = newPositions[indices.index((i,j))-1] #indices[1:-1:].index((i,j)) = indices.index(i,j) - 1
                 q = self.data[l][k]
-                if np.linalg.norm(p - q)<2*radius:
+                if np.linalg.norm(p - q)<upper_bound_closest_self_distance:
                     return 0
             elif (i,j) in [indices[0], indices[-1]]:#first pair belongs to a join arc, second pair to any arc
                 p = self.data[i][j]
@@ -1042,17 +1073,17 @@ class ThreadedBeads:
                     q = newPositions[indices.index((l,k))-1]
                 else:
                     q = self.data[l][k]
-                if np.linalg.norm(p - q)<2*radius:
+                if np.linalg.norm(p - q)<upper_bound_closest_self_distance:
                     return 0
             elif (l,k) in indices[1:-1:]:#first pair is unmoved, second pair rotated
                 p = np.array(self.data[i][j])
                 q = np.array(newPositions[indices.index((l,k))-1])
-                if np.linalg.norm(p - q)<2*radius:
+                if np.linalg.norm(p - q)<upper_bound_closest_self_distance:
                     return 0
             elif (l,k) in [indices[0], indices[1]]:#first pair is unmoved, second pair join
                 p = np.array(self.data[i][j])
                 q = np.array(self.data[l][k])
-                if np.linalg.norm(p - q)<2*radius:
+                if np.linalg.norm(p - q)<upper_bound_closest_self_distance:
                     return 0
         return 1
 
@@ -1087,14 +1118,11 @@ class ThreadedBeads:
                         indexList.append([(i, (j + k)%len(self.data[i])) for k in range(n)])
         return indexList
 
-    def move(self, radius=1.0, epsilon=1.0, dMin = 0.0008, dMax=0.015):
-        """a new position of the curve is evaluated close to the original position such that the tube surrounding the curve of radius radius is embedded
-
+    def move(self, dMin = 0.0008, dMax=0.015):
+        """a new position of the curve is evaluated close to the original position such that the reach of the curve is lower bounded by reach variable
         arguments:
 
         keyword arguments:
-        radius float  dummy variable hack to make the call the same as for the biarc model
-        epsilon float dummy variable hack to make the call the same as for the biarc model
         dMax float maximum distance points belonging to the curve are moved
         Nmax integer maximum additional number of arcs moved
 
@@ -1158,36 +1186,6 @@ class ThreadedBeads:
             if rc <2*dMin:
                 numberOfTries+=1
                 continue
-#            #d = dMax
-#            d = np.random.uniform(dMin, dMax)
-#            #d = dMax/1000 + np.random.exponential(scale=dMax)
-#            angle = angleChoice(dAngle(rc, d))
-#            random.shuffle(angle)
-#
-#            while len(angle)>0:
-#                a = angle.pop(0)
-#
-#                newPos = []
-#                for n in range(len(posVector)):
-#                    newPos.append(startPoint + simp_func.rotate(posVector[n], a, rotationAxis))
-#
-#                #check curvature constraint
-#                if self.configType=='open':
-#                    if (ind[0][1] not in  ['x', 0]):#start vertex is not an interior vertex if ind[0][1] = 'x' or 0 and is never n-1
-#                        if simp_func.returnTurningAngleForControlTriangle(self.data[ind[0][0]][indexPrevJ(ind[0])], self.data[ind[0][0]][ind[0][1]], newPos[0]) > 2*self.deltaStar:
-#                            continue
-#                    if (ind[-1][1] not in ['x', (len(self.data[ind[-1][0]])-1)]):#last vertex is the beginning vertex of the chain
-#                        if simp_func.returnTurningAngleForControlTriangle(newPos[-1], self.data[ind[-1][0]][ind[-1][1]], self.data[ind[-1][0]][indexNextJ(ind[-1])]) > 2*self.deltaStar:
-#                            continue
-#                else:
-#                    if simp_func.returnTurningAngleForControlTriangle(self.data[ind[0][0]][indexPrevJ(ind[0])], self.data[ind[0][0]][ind[0][1]], newPos[0]) > 2*self.deltaStar:
-#                        continue
-#                    if simp_func.returnTurningAngleForControlTriangle(newPos[-1], self.data[ind[-1][0]][ind[-1][1]], self.data[ind[-1][0]][indexNextJ(ind[-1])]) > 2*self.deltaStar:
-#                        continue
-#
-#                #check the overlapping arc condition
-#                if self.check_new_positions_do_not_cause_overlaps(self.R, newPos, ind):
-#                    return d, ind, newPos
 
             d_upperBound = dMax
             while d_upperBound>1000*dMin:
@@ -1219,7 +1217,7 @@ class ThreadedBeads:
                             continue
 
                     #check the overlapping arc condition
-                    if self.check_new_positions_do_not_cause_overlaps(self.R, newPos, ind):
+                    if self.check_new_positions_do_not_cause_overlaps(self.upper_bound_closest_self_distance, newPos, ind):
                         return d, ind, newPos
                 d_upperBound = 0.25*d_upperBound
 
@@ -1274,7 +1272,6 @@ class ThreadedBeads:
                 f1.write(str(dec.Decimal(str(round(pt[0],5))))+' '+str(dec.Decimal(str(round(pt[1],5))))+' '+str(dec.Decimal(str(round(pt[2],5))))+'\n')
         f1.write('END\n')
         f1.close()
-
 
     def generates_list_arc_radii(self):
         """Creates list floats. Each float gives the radius of the arc defined by the bezier triangle at that index."""
@@ -1342,168 +1339,19 @@ class ThreadedBeads:
         #return (returnMinimumInNestedListOfFloats(self.generates_list_arc_radii()))
         return (returnMinimumInNestedListOfFloats(self.generates_list_arc_radii()), min(self.generate_closest_distances(withInfo=withInfo)))
 
-#    def update_minRad_closestDistance(self):
-#        """"Function computes the minimum arc radius and the minimum self distance and sets this as varaibles minRad and selfDist. """
-#        (minRad, selfDist) = self.check_reach()
-#        self.minRad = minRad
-#        self.selfDist = selfDist
-#        return None
-    
-    @classmethod
-    def set_radii(cls, overlapRatio, rTube, edgeLength):
-        """"Sets the input sphere radius used to evaluate the energy, since you are now swopping curve data this needs to be the same across all instances of the class"""
-        cls.R = round(m.sqrt(rTube**2 + 0.25*edgeLength**2), 5)
-        cls.r_s = round(m.sqrt(rTube**2 + 0.25*edgeLength**2)*overlapRatio, 5)  
-        cls.input_R = round(m.sqrt(rTube**2 + 0.25*edgeLength**2)*(1 + overlapRatio), 5)
-        return None
-
-    def evaluate_embedded_measures(self):
-        """ Function computes the embedded measures and saves them as variables of the curve"""
-        
-        if self.configType=='open':
-            endCaps=True
-        else:
-            endCaps=False
-        if hasattr(ThreadedBeads, 'input_R'): 
-            measures = returnEmbeddedMeasures(self.data, ThreadedBeads.input_R, endCaps=endCaps)
-
-            self.V_0 = measures[0]
-            self.A_0 = measures[1]
-            self.C_0 = measures[2]
-            self.X_0 = measures[3]
-            return None
-        else:
-            print('You need to call ThreadedBeads.set_radii(overlapRatio, rTube, edgeLength) to set the radius of the spheres used to compute the measures')
-            sys.exit()
-        
-
-    def evaluate_measures(self):
-        """Function computes the measures of the curveData point list with balls of radius input_R """
-    
-        if hasattr(ThreadedBeads, 'input_R'): 
-            pointList = [pt for subList in self.data for pt in subList]
-            makeFilFile(pointList, 'input', ThreadedBeads.input_R)
-            #makeObjFile(pointList, 'input_'+fileName)
-
-            #call morph with the input files
-            #proc = subprocess.Popen('export LD_LIBRARY_PATH=/usr/site-local/lib/gcc/x86_64-unknown-linux-gnu/4.1.1:$LD_LIBRARY_PATH \n ./morphLf ./inputFiles/input.fil', shell=True)
-            proc = subprocess.Popen('./morph_local ./inputFiles/input.fil', shell=True)
-            proc.wait()
-            
-            #read line
-            measures = []
-            with open("./data.txt", "r") as f1:
-                line = f1.readline().split('  ')
-                measures=[float(line[l]) for l in range(4)]
-                f1.close()
-
-            self.V = measures[0]
-            self.A = measures[1]
-            self.C = measures[2]
-            self.X = measures[3]    
-
-            #delete file data.txt and input file
-            os.remove("data.txt")
-            os.remove("./inputFiles/input.fil")
-            return None
-        else:
-            print('You need to call ThreadedBeads.set_radii(overlapRatio, rTube, edgeLength) to set the radius of the spheres used to compute the measures')
-            sys.exit()
-        
-    @classmethod
-    def set_coefficients(cls, alpha=0, eta=0, real=False):
-        """Sets the coefficients used to evaluate the energy."""
-
-        if hasattr(cls, 'r_s'):
-            if eta>0:
-                f1 = eta*(1 + eta + eta**2 - pow(eta, 3))/pow(1 - eta, 3)
-                f2 = eta*((1 + 2*eta + 8*eta**2 - 5*pow(eta, 3))/(3*pow(1 - eta, 3)) + m.log(1 - eta)/(3*eta))
-                f3 = eta*((4 - 10*eta + 20*eta**2 - 8*pow(eta, 3))/(3*pow(1- eta, 3)) + 4*m.log(1 - eta)/(3*eta))
-                f4 = eta*((-4 + 11*eta - 13*eta**2 + 4*pow(eta, 3))/(3*pow(1 - eta, 3)) - 4*m.log(1 - eta)/(3*eta))
-                cls.prefactors = [round(1.0/pow(cls.r_s, 3), 5), round((-f2/f1)/pow(cls.r_s, 2), 5), round((f3/f1)/cls.r_s, 5), round(f4/f1, 5)]
-                #cls.prefactors = (np.array([f1/pow(cls.r_s, 3),-f2/pow(cls.r_s, 2), f3/cls.r_s, f4])*(3/(4*m.pi))).round(5).tolist()
-            elif alpha>0:
-                cls.prefactors = [round(1.0/pow(cls.r_s, 3), 5), round(-alpha/pow(cls.r_s, 2), 5), 0, 0]
-            elif real:#here you shall put the prefactors as they compare to HAN07
-                f1 = eta*(1 + eta + eta**2 - pow(eta, 3))/pow(1 - eta, 3)
-                f2 = eta*((1 + 2*eta + 8*eta**2 - 5*pow(eta, 3))/(3*pow(1 - eta, 3)) + m.log(1 - eta)/(3*eta))
-                f3 = eta*((4 - 10*eta + 20*eta**2 - 8*pow(eta, 3))/(3*pow(1- eta, 3)) + 4*m.log(1 - eta)/(3*eta))
-                f4 = eta*((-4 + 11*eta - 13*eta**2 + 4*pow(eta, 3))/(3*pow(1 - eta, 3)) - 4*m.log(1 - eta)/(3*eta))
-                cls.prefactors = [round(f1/pow(cls.r_s, 3), 5), round(-f2/pow(cls.r_s, 2), 5), round(f3/cls.r_s, 5), round(f4, 5)]
-                print("WARNING still missing a factor 3/4pi or something")
-            else:
-                cls.prefactors = [round(1.0/pow(cls.r_s, 3), 5),0,0,0]
-
-            return None
-        else:
-            print('You need to call ThreadedBeads.set_radii(overlapRatio, rTube, edgeLength) to set the radius of the spheres used to compute the measures')
-            sys.exit()
-
-    def evaluate_energy_difference(self, neighbouringCurveCoordinates):
-        """Function computes the measures of the neighbouringCurveCoordinates with the radius input_R as associated to the class variable. 
-           The energy of self is compared to the energy of a class instance with vertex positions given by the neighbouringCurveCoordinates."""
-
-        if hasattr(ThreadedBeads, 'input_R'): 
-            pointList = [pt for subList in neighbouringCurveCoordinates for pt in subList]
-            makeFilFile(pointList, 'input', ThreadedBeads.input_R)
-            #makeObjFile(pointList, 'input_'+fileName)
-
-            #call morph with the input files
-            #proc = subprocess.Popen('export LD_LIBRARY_PATH=/usr/site-local/lib/gcc/x86_64-unknown-linux-gnu/4.1.1:$LD_LIBRARY_PATH \n ./morphLf ./inputFiles/input.fil', shell=True)
-            proc = subprocess.Popen('./morph_local ./inputFiles/input.fil', shell=True)
-            proc.wait()
-            
-            #read line
-            measures = []
-            with open("./data.txt", "r") as f1:
-                line = f1.readline().split('  ')
-                measures=[float(line[l]) for l in range(4)]
-                f1.close()
-
-            #delete file data.txt and input file
-            os.remove("data.txt")
-            os.remove("./inputFiles/input.fil")
-            
-            
-            #deltaE = (tmpE[0] - tmpE[1]) - (E[0] - E[1])
-            #deltaE = tmpE[0] - E[0] #the above is pointless because the embedded energies are exactly equal 
-            deltaE = ThreadedBeads.prefactors[0]*(measures[0] - self.V) + ThreadedBeads.prefactors[0]*(measures[0] - self.V) + ThreadedBeads.prefactors[1]*(measures[1] - self.A) + ThreadedBeads.prefactors[2]*(measures[2] - self.C) + ThreadedBeads.prefactors[3]*(measures[3] - self.X)
-            return (deltaE, measures)
-        else:
-            print('You need to call ThreadedBeads.set_radii(overlapRatio, rTube, edgeLength) to set the radius of the spheres used to compute the measures')
-            sys.exit()
-
-                
-            # E = measures[0]/pow(solventSphereRadius, 3) + prefactors[1]*measures[1]/pow(solventSphereRadius, 2) + prefactors[2]*measures[2]/(solventSphereRadius) + prefactors[3]*measures[3]
-            # E_0 = embeddedMeasures[0]/pow(solventSphereRadius, 3) + prefactors[1]*embeddedMeasures[1]/pow(solventSphereRadius, 2) + prefactors[2]*embeddedMeasures[2]/(solventSphereRadius) + prefactors[3]*embeddedMeasures[3]
-
-    def evaluate_energy(self):
-        """ Computes the energy from the measures associated to the class object """
-        
-        return ThreadedBeads.prefactors[0]*self.V + ThreadedBeads.prefactors[1]*self.A + ThreadedBeads.prefactors[2]*self.C + ThreadedBeads.prefactors[3]*self.X
-
-    def evaluate_embedded_energy(self):
-        """ Computes the energy from the measures associated to the class object """
-        
-        return ThreadedBeads.prefactors[0]*self.V_0 + ThreadedBeads.prefactors[1]*self.A_0 + ThreadedBeads.prefactors[2]*self.C_0 + ThreadedBeads.prefactors[3]*self.X_0
-
-    def evaluate_normalised_energy(self):
-        """ Computes the energy from the measures associated to the class object """
-        
-        return (ThreadedBeads.prefactors[0]*(self.V - self.V_0) + ThreadedBeads.prefactors[1]*(self.A - self.A_0) + ThreadedBeads.prefactors[2]*(self.C - self.C_0) + ThreadedBeads.prefactors[3]*(self.X - self.X_0))/self.length
+    def evaluate_curve_vertices(self, geometryData):
+        """Function returns the curve vertices corresponding to the data of the geometry object. 
+           If the geometry type is ThreadedBeads (as it is the  case here) then the geometryData is the curve vertices. 
+           For the biarc curve this is different.
+        """
+        return geometryData
 
     def __copy__(self):
         """Returns a copy of the object and a number of variables.""" 
 
         newone = type(self)()
-        #newone.__dict__.update(self.__dict__) -> makes a copy of all the instance variables which may be unnecessary
-        #for item in ['ropelength', 'configType', 'arcPairs', 'edgeWeights', 'sphereCount']: -> this also kind of overkill -> to make the pointList only need sphereCount, configType and poss. ropelength
-        for item in ['configType']:
+        for item in ['configType', 'other object attributes to pass over to new instance', 'etc']:
             newone.__dict__[item] = self.__dict__[item]
         return newone
 
-    def update_new_geometry(self, geometry):
-        """updates self with certain attributes of geometry."""
-
-        for item in ['edgeLength', 'length', 'deltaStar','R','arcPairs']:
-            self.__dict__[item] = geometry.__dict__[item]
+        
