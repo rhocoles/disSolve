@@ -83,7 +83,7 @@ def do_move_and_check_energy_and_accept_or_reject(geometry, dMin, dMax, T):
     moveReturn = geometry.move(dMin=dMin, dMax=dMax)
     if moveReturn == 1:#configuration jammed all processes should end
         print('jammed on rank'+str(rank))
-        beadedCurve.save_data('./','jammedGeometry')
+        geometry.save_data('./','jammedGeometry')
         sys.exit()
     else:
         d, indices, newPos =  moveReturn

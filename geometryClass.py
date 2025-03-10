@@ -205,11 +205,14 @@ def makeObjFile(pointList, fileName):
 class Biarcs:
     """ Geometry class of biarcs, this is a set of isoceles triangles sharing common verticies and parallel short edges with adjacent triangles """ 
 
-    # here you can put class variables shared by all instances
-    
-    def __init__(self,  fileName=''):
+    prefactors = [0,0,0,0]
+
+    def __init__(self,  fileName='', curveData=[]):
         if fileName=='':
-            self.data = []
+            if len(curveData)==0:
+                print("You need to initialise the shape of the curve either from a .txt file or from a biarcs.curveName")
+            else:
+                self.data = curveData
         else:
             f = open(str(fileName), 'r')
             readList = f.read().split('\n')
@@ -231,6 +234,18 @@ class Biarcs:
                 if len(strand)>0:
                     self.data.append(strand)
 
+        self.configType = "closed"
+        self.length = sum(self.compute_length())
+
+        self.deltaStar = self.compute_deltaStar(1.0, self.compute_average_edge_length())
+        self.skippedInteger = m.floor(0.5*m.pi/self.deltaStar)
+        self.arcPairs = self.evaluate_arc_pairs_to_be_checked(self.skippedInteger)
+
+        nMax = int(0.3*min([len(self.data[i]) for i in range(len(self.data))]))
+        self.index_intervals_to_be_rotated = self.generate_index_intervals_to_be_rotated(nMax)
+        self.sphereCount = [len(self.data[i]) for i in range(len(self.data))]
+
+
         self.ropelength = 0.0    # instance variables unique to each instance, these values are then changed in a method
         self.length = 0.0
         self.configType = "closed"
@@ -241,7 +256,7 @@ class Biarcs:
     def set_ropelength(self, value):
         self.ropelength = value
 
-    def evaluate_curve_length(self):
+    def compute_length(self):
         """Evaluates the length of the curve and saves in the variable length."""
         
         result = []
