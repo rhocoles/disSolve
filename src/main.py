@@ -1,7 +1,7 @@
 import numpy as np
 np.set_printoptions(legacy='1.21')
 import random
-from copy import deepcopy
+#from copy import deepcopy
 
 import decimal as dec
 from datetime import datetime
@@ -16,7 +16,7 @@ import socket
 #from geometryClass import ThreadedBeads
 import geometryClass as geoClass
 
-#import pointFilaments
+import pointFilaments
 import biarcs
 
 comm = MPI.COMM_WORLD
@@ -93,13 +93,8 @@ def do_move_and_check_energy_and_accept_or_reject(geometry, dMin, dMax, T):
         geometry.curve_object.save_data('./','jammedGeometry')
         sys.exit()
     else:
-        d, indices, newPos =  moveReturn
+        tmpGeometryData =  moveReturn
     
-    #update new positions to generate a neighbouring configuration
-    tmpGeometryData = deepcopy(geometry.curve_object.data)
-    #for (i,j) in indices[1:-1:]:
-    for (i,j) in indices:
-        tmpGeometryData[i][j]=newPos.pop(0)
     tmpCurveVertices = geometry.curve_object.evaluate_curve_vertices(tmpGeometryData)
     deltaE, size_measures = geometry.evaluate_energy_difference(tmpCurveVertices) #if ThreadedBeads size_measures =  measures if Biarc size_measures = (measures, embedded_measures, length)    
 
@@ -108,7 +103,7 @@ def do_move_and_check_energy_and_accept_or_reject(geometry, dMin, dMax, T):
     if tmp_0or1==1:
         geometry.update_geometry(tmpGeometryData, tmpCurveVertices, size_measures)
             
-    return (tmp_0or1, prob, deltaE, d)
+    return (tmp_0or1, prob, deltaE)
 
 def measureTime():
     """Returns the current date and time up to the nearest second"""
@@ -136,16 +131,16 @@ polyFileName = 'test_'+str(rank)+'_'
 fileName = 'test_'+str(rank)
 frameNumber = 1
 
-pathToInitialConfig = sys.argv[1]
+pathToInitialConfig = sys.argv[-1]
 rTube = 1.0
-overlapRatio = float(sys.argv[2]) #change this in the submit file 
-eta = float(sys.argv[3])
+overlapRatio = float(sys.argv[1])
+eta = float(sys.argv[2])
 
 #annealing schedule variables
-T = float(sys.argv[4])
-decrease = lambda x: x*float(sys.argv[5])
-allgather_time = int(sys.argv[6])#number secs computing between systems may be exchanged
-numberOfRounds = int(sys.argv[7])
+T = float(sys.argv[3])
+decrease = lambda x: x*float(sys.argv[4])
+allgather_time = int(sys.argv[5])#number secs computing between systems may be exchanged
+numberOfRounds = int(sys.argv[6])
 dragFactor = 5000 #number of iterations over which expectations are computed.
 dMin = 0.00001*overlapRatio
 dMax = overlapRatio + dMin
@@ -165,10 +160,10 @@ print(dMin, dMax)
 #numberSecondsBetweenUpdatingTempByVaryT=int(sys.argv[10])
 
 #define the geometry
-#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(1, fileName=pathToInitialConfig, edgeLength=0.25))
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, curveData=pointFilaments.circle36_thBe_dl25, edgeLength=0.25))
 #geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(fileName=pathToInitialConfig, sphereDensity=5))
-#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.circle36Biarc_124arcs, sphereDensity=4))
-geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.trefoil_test, sphereDensity=4))
+geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.circle36Biarcs_52arcs))
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.trefoil50Biarcs_48arcs, sphereDensity=4))
 #geometry.curve_object.rescale_geometry(40/39.68504)
 geometry.curve_object.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
 geoClass.makePointCloudPoly([pt for subList in geometry.curve_object.curve_vertices for pt in subList], fileLocation,'test_'+str(frameNumber))
@@ -177,8 +172,9 @@ geometry.evaluate_embedded_measures()
 geometry.evaluate_measures()
 
 if rank ==0:
-    print(len(geometry.curve_object.data[0]))
-    print("strand lengths ", list(map(lambda x: round(x, 5), geometry.curve_object.evaluate_curve_length(geometry.curve_object.data))))
+    if geometry.curve_object.geometryType == "Biarc":
+        print("strand lengths ", list(map(lambda x: round(x, 5), geometry.curve_object.evaluate_curve_length(geometry.curve_object.data))))
+    print("curve is of ", len(geometry.curve_object.data), "strands and each strand has ", [len(geometry.curve_object.data[i]) for i in range(len(geometry.curve_object.data))])
     print("edge length is fixed to ", geometry.curve_object.edgeLength)
     print("computing with ball radius ", geometry.input_R)
     print(rank, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0)
@@ -211,13 +207,13 @@ while rounds < numberOfRounds:
     while (time.time()-last_gather < allgather_time):
         it_no+=1
     
-        (tmp_0or1, prob, deltaE, d) = do_move_and_check_energy_and_accept_or_reject(geometry, dMin, dMax, T)
+        (tmp_0or1, prob, deltaE) = do_move_and_check_energy_and_accept_or_reject(geometry, dMin, dMax, T)
         accept+=tmp_0or1
 
         #save iteration data
-        if (it_no)%50==0:
+        if (it_no)%500==0:
             #writeData([it_no, T, prob, deltaE, d, geometry.V, geometry.A, geometry.C, geometry.X, frameNumber, accept/it_no, probability_expectation, deltaE_increasing_expectation, time.time(), newRank], fileName)
-            writeData([it_no, T, prob, deltaE, d, geometry.V, geometry.A, geometry.C, geometry.X, frameNumber, accept/it_no, time.time(), new_rank], fileName)
+            writeData([it_no, T, prob, deltaE, geometry.V, geometry.A, geometry.C, geometry.X, frameNumber, accept/it_no, time.time(), new_rank], fileName)
 
         #print out poly file
         if (it_no + accept)%500==0:
@@ -227,7 +223,6 @@ while rounds < numberOfRounds:
             frameNumber+=1
 
         if it_no%500==0:
-            geometry.evaluate_measures()
             print("Info from rank", rank, " (E - E0)/L", geometry.evaluate_normalised_energy(), "T =", T, "acceptRatio", accept/it_no, "(minRads, minSelfDist) = ", geometry.curve_object.check_reach())
 
             #compute expected prob and deltaE_>0
@@ -255,12 +250,12 @@ while rounds < numberOfRounds:
     if rank==0:
         print("---> now mixing the states \n")
         print([alldatas[i]["energy"] for i in range(size)])
-        print(mixing_probabilities)
+        print('mixing probabilities', mixing_probabilities)
     #bias the pdf to choose the current strand with 0.5 liklihood over swopping 
     dont_swop_bias = [0.5 if i == rank else 0.5/(size - 1) for i in range(size)] 
     biased_probabilities = [0.5*(mixing_probabilities[i] + dont_swop_bias[i]) for i in range(size)]
     if rank==0:
-        print("going with the dont--swop biased pdf\n", biased_probabilities)
+        print("\n biased probabilties", biased_probabilities)
     newRank = random.choices(range(size), mixing_probabilities, k=1)[0]
     #make an extra check to make sure we have not chucked out the lowest energy configuration
     if abs(allgather_data["energy"] - min([alldatas[i]["energy"] for i in range(size)]))< 0.05:
@@ -268,7 +263,7 @@ while rounds < numberOfRounds:
         print("rank ", rank, "is more--or--less the minimum so not swopping")
     else:
         newRank = random.choices(range(size), biased_probabilities, k=1)[0]
-    print(rank, " will adopt", newRank)
+        print(rank, " will adopt", newRank)
     geometry = alldatas[newRank]["geometry"]
     
     #check

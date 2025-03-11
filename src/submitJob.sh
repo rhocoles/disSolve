@@ -38,8 +38,7 @@ cp ${dir_origin}/simple_functions.py .
 cp ${dir_origin}/morphometry.py .
 cp ${dir_origin}/libmorphometry.so .
 cp ${dir_origin}/biarcs.py .
-
-#cp ${dir_origin}/pointFilaments.py .
+cp ${dir_origin}/pointFilaments.py .
 
 #may be that you don't want to do this...
 rm -rf polyFiles
@@ -51,7 +50,7 @@ mkdir data
 
 #screen -S ${structure:0:3}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3} -L -d -m mpirun -np $numberParallelProcesses ~/miniconda3/bin/python3 main.py $structure $T_0 $overlapRatio $ropelength $eta $inputFile $T_step $numberSecondsPerTemp $totalNumberOfRounds $varyT $numberRoundsVaryT $numberSecondsBetweenUpdatingTempByVaryT
 #screen -S ${structure:0:3}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3} -L -d -m mpirun -np $numberParallelProcesses python3 main.py $structure $T_0 $overlapRatio $eta $T_step $numberSecondsPerTemp $numberOfRounds $varyT $numberRoundsVaryT $numberSecondsBetweenUpdatingTempByVaryT $inputFile
-python3.9 main.py $inputFile $overlapRatio $eta $T_0 $T_step $numberSecondsPerTemp $numberOfRounds
-#mpirun -np 1 python3.9 main.py $inputFile $overlapRatio $eta $T_0 $T_step $numberSecondsPerTemp $numberOfRounds
+python3.9 main.py $overlapRatio $eta $T_0 $T_step $numberSecondsPerTemp $numberOfRounds $inputFile
+#mpirun -np 1 python3.9 main.py $inputFile $overlapRatio $eta $T_0 $T_step $numberSecondsPerTemp $numberOfRounds $inputFile
 
 #echo "experiment will end in $(((varyT*(numberRoundsVaryT*numberSecondsBetweenUpdatingTempByVaryT + 2) + numberSecondsPerTemp*numberSecondsBetweenUpdatingTempByVaryT)/(60*60*24))) days"

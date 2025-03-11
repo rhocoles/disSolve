@@ -2,9 +2,10 @@ import math as m
 import numpy as np
 import random
 import decimal as dec
-import sys
-import subprocess
-import os
+#import sys
+#import subprocess
+#import os
+from copy import deepcopy
 
 import simple_functions as simp_func
 import morphometry as mm
@@ -346,7 +347,7 @@ class TubularGeometry:
         elif self.curve_object.geometryType == "Biarcs":
             #deltaE = (tmpE - tmpE_0)/tmpL - (E - E_0)/L
 
-            embedded_measures = returnEmbeddedMeasures(neighbouring_curve_vertices, self.input_R)
+            embedded_measures = returnEmbeddedMeasures(neighbouring_curve_vertices, self.input_R, endCaps=False) #biarcs are currently only implemented as closed curves
             length = returnLengthOfPointList(neighbouring_curve_vertices, self.curve_object.configType)
             neighbouring_normalised_energy = (np.dot(np.array(self.coefficients), np.array(measures) - np.array(embedded_measures)))/length
             
@@ -417,8 +418,6 @@ class Biarcs:
 
         self.configType = "closed" # if (openOrClosed) else "closed" # open biarc curve is not implemented
         
-        print(sphereDensity)
-
         self.numberOfCurveVerticesPerStrand = [sphereDensity*len(self.data[i]) for i in range(len(self.data))]
         
         self.curve_vertices = self.evaluate_curve_vertices(self.data)
@@ -659,7 +658,11 @@ class Biarcs:
                
                     #check the overlapping arc condition
                     if self.check_new_positions_do_not_cause_overlaps(self.upper_bound_closest_self_distance, 0.01, newTrianglePositions, indices):
-                        return d, indices, newTrianglePositions
+                        #return d, indices, newTrianglePositions ---> Tidy: #update new positions to generate a neighbouring configuration
+                        tmpGeometryData = deepcopy(self.data)
+                        for (i,j) in indices:
+                            tmpGeometryData[i][j]=newTrianglePositions.pop(0)
+                        return tmpGeometryData
 
                 d_upperBound = 0.15*d_upperBound
 
@@ -891,6 +894,7 @@ class ThreadedBeads():
         self.configType = "open" if (openOrClosed) else "closed" #options are closed or open
 
         self.length = sum(self.compute_length())
+        #returnLengthOfPointList(self.curve_vertices, self.configType)
 
         if edgeLength > 0:
             self.edgeLength = edgeLength
@@ -934,17 +938,15 @@ class ThreadedBeads():
         """Sums the length of each edge and saves in the variable length."""
         
         result = []
-        runningTotal = 0
         for i in range(len(self.data)):
-            result.append(runningTotal)
+            runningTotal = 0
             j = 1 
             while j<len(self.data[i]):
                 runningTotal+=np.linalg.norm(self.data[i][j] - self.data[i][j-1]) 
                 j+=1
             if self.configType=='closed':
-                runningTotal+=np.linalg.norm(self.data[i][0] - self.data[i][-1]) 
-            result[-1] = runningTotal - result[-1]
-        #self.length = runningTotal -- remeber for the ThreadedBead geometry this is constant.
+                runningTotal+=np.linalg.norm(self.data[i][-1] - self.data[i][0]) 
+            result.append(runningTotal)
         return result
 
     def check_equal_edges(self):
@@ -1223,7 +1225,12 @@ class ThreadedBeads():
 
                     #check the overlapping arc condition
                     if self.check_new_positions_do_not_cause_overlaps(self.upper_bound_closest_self_distance, newPos, ind):
-                        return d, ind, newPos
+                        #return d, ind, newPos ---> Tidy: #update new positions to generate a neighbouring configuration
+                        tmpGeometryData = deepcopy(self.data)
+                        for (i,j) in ind[1:-1:]:
+                            tmpGeometryData[i][j]=newPos.pop(0)
+                        return tmpGeometryData
+
                 d_upperBound = 0.25*d_upperBound
 
             numberOfTries+=1
