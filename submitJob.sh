@@ -7,8 +7,7 @@
 #structure='hopfLink'
 #structure='hopfLink32'
 #structure='trefoil40'
-#structure='trefoil36'
-structure='trefoil56'
+#structure='trefoil56'
 #structure='torusKnot2_5'
 #structure='thBe_circle36'
 #structure='openChain_dl25_25'
@@ -24,21 +23,20 @@ structure='trefoil56'
 #shape='double_helix_symmetric'
 #shape='placebo'
 #shape='optimal_helix'
+structure="test"
 
 #inputFile="${shape}.txt"
-inputFile="initialConfig_step2.txt"
-# ---> to continue an experiment from frame_number of a previous run through ... files should be in the form testi__f.txt where i=number_of_parallel_process f=frame_number then uncomment lins 170 and 177 of main.py
-#inputFile='fileName.txt' # ---> each parallel process gets the same initial configuration saved from fileName.txt then uncomment lines 171 and 177 of main.py
+inputFile=""
 
-overlapRatio=0.06
-eta=0.35
+overlapRatio=0.1
+eta=0.05
 
-numberParallelProcesses=8
+numberParallelProcesses=4
 
 #annealing parameters for the decreasing temp part
-numberSecondsPerTemp=96000
-numberOfRounds=18
-T_0=20.0
+numberSecondsPerTemp=2400
+numberOfRounds=6
+T_0=28.0
 T_step=0.975
 
 #annealing parameters for the variable T part of experiment --- no swopping
@@ -54,7 +52,8 @@ dir_origin=${PWD}
 
 # first make an directory .../structure/gridPoint../
 #dir=/LOCAL/coles/testing/structures/${structure}/$shape/${structure}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3}
-dir=/LOCAL/coles/testing/structures/${structure}/${structure}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3}
+#dir=/LOCAL/coles/testing/structures/${structure}/${structure}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3}
+dir=${dir_origin}/${structure}
 echo $dir
 
 mkdir -p $dir
@@ -65,19 +64,23 @@ echo "${dir}"
 cp ${dir_origin}/main.py .
 cp ${dir_origin}/geometryClass.py .
 cp ${dir_origin}/simple_functions.py .
-cp ${dir_origin}/morph_local .
+cp ${dir_origin}/morphometry.py .
+cp ${dir_origin}/libmorphometry.so .
+
 cp ${dir_origin}/pointFilaments.py .
 
 #may be that you don't want to do this...
 rm -rf polyFiles
 mkdir polyFiles
 rm -rf screenlog.0
+rm -rf data
+mkdir data
 
-#tidy up the old data files
-rm -rf data*
 
 #screen -S ${structure:0:3}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3} -L -d -m mpirun -np $numberParallelProcesses ~/miniconda3/bin/python3 main.py $structure $T_0 $overlapRatio $ropelength $eta $inputFile $T_step $numberSecondsPerTemp $totalNumberOfRounds $varyT $numberRoundsVaryT $numberSecondsBetweenUpdatingTempByVaryT
 #screen -S ${structure:0:3}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3} -L -d -m mpirun -np $numberParallelProcesses ~/miniconda3/bin/python3 main.py $structure $T_0 $overlapRatio $eta $T_step $numberSecondsPerTemp $numberOfRounds $varyT $numberRoundsVaryT $numberSecondsBetweenUpdatingTempByVaryT $inputFile
-screen -S ${structure:0:3}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3} -L -d -m mpirun --oversubscribe -np $numberParallelProcesses ~/miniconda3/bin/python3 main.py $structure $T_0 $overlapRatio $eta $T_step $numberSecondsPerTemp $numberOfRounds $varyT $numberRoundsVaryT $numberSecondsBetweenUpdatingTempByVaryT $inputFile
+#screen -S ${structure:0:3}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3} -L -d -m mpirun --oversubscribe -np $numberParallelProcesses ~/miniconda3/bin/python3 main.py $structure $T_0 $overlapRatio $eta $T_step $numberSecondsPerTemp $numberOfRounds $varyT $numberRoundsVaryT $numberSecondsBetweenUpdatingTempByVaryT $inputFile
 #screen -S ${shape:0:4}_${shape:(-4)}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3} -L -d -m mpirun --oversubscribe -np $numberParallelProcesses ~/miniconda3/bin/python3 main.py $structure $T_0 $overlapRatio $eta $T_step $numberSecondsPerTemp $numberOfRounds $varyT $numberRoundsVaryT $numberSecondsBetweenUpdatingTempByVaryT $inputFile
+
+screen -S "testRun" -L -d -m mpirun -np $numberParallelProcesses ~/miniconda3/bin/python3 main.py $overlapRatio $eta $T_0 $T_step $numberSecondsPerTemp $numberOfRounds $inputFile
 

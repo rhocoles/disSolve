@@ -1,7 +1,6 @@
-#simple function definitions
 import math as m
 import numpy as np
-#from numba import njit
+from numba import njit
 import random
 import itertools
 
@@ -120,7 +119,6 @@ def returnTurningAngleForControlTriangle(p0, p, p1):
 	
     return np.arccos(t0Dott1)
 
-
 def returnArcLengthForBezierTriangle(b0, b1, b2):
     """
     Function: returnArcLengthForBezierTriangle
@@ -138,7 +136,6 @@ def returnArcLengthForBezierTriangle(b0, b1, b2):
     t0Dott1 = np.clip(np.dot(t0, t1), -0.999999999999, 0.999998)
     
     return np.arccos(t0Dott1)*(0.5*(e0 + e1)*m.sqrt(1 + t0Dott1))/m.sqrt(1 - t0Dott1)
-
 
 def returnPointOnArcAtDistance(a, separationDistance, normal, tangent, centre, circleRadius):
     """
@@ -516,167 +513,168 @@ def returnLineToLineDistance(a0a1, b0b1):
             return m.sqrt(Dinf**2 + min(f1, f2))
 
 
-#@njit
-#def cLineToLineDistance(a, b):
-#    """
-#    Function: cLineToLineDistance
-#    -----------------------------------------------------------------------------------------------------
-#    function returns the distance between the line segments a and b
-#    a  2 x 3 numpy.array
-#    b  2 x 3 numpy.array
-#    return float
-#    """
-#
-#    a_0_0 = a[0,0];
-#    a_0_1 = a[0,1];
-#    a_0_2 = a[0,2];
-#    a_1_0 = a[2,0];
-#    a_1_1 = a[2,1];
-#    a_1_2 = a[2,2];    
-#    
-#    # compute edge length and the edge unit vector
-#    u_0    = a_1_0 - a_0_0;
-#    u_1    = a_1_1 - a_0_1;
-#    u_2    = a_1_2 - a_0_2;
-#    K      = np.sqrt( u_0 * u_0 + u_1 * u_1 + u_2 * u_2 );
-#    K_inv  = 1. / K;
-#    u_0   *= K_inv;
-#    u_1   *= K_inv;
-#    u_2   *= K_inv;
-#    K_half = 0.5 * K;
-#
-#    # edge midpoint
-#    M_0    = 0.5 * (a_0_0 + a_1_0);
-#    M_1    = 0.5 * (a_0_1 + a_1_1);
-#    M_2    = 0.5 * (a_0_2 + a_1_2);
-#    
-#    b_0_0 = b[0,0];
-#    b_0_1 = b[0,1];
-#    b_0_2 = b[0,2];
-#    b_1_0 = b[2,0];
-#    b_1_1 = b[2,1];
-#    b_1_2 = b[2,2];  
-#
-#    # compute edge length and the edge unit vector            
-#    v_0    = b_1_0 - b_0_0;
-#    v_1    = b_1_1 - b_0_1;
-#    v_2    = b_1_2 - b_0_2;
-#    L      = np.sqrt( v_0 * v_0 + v_1 * v_1 + v_2 * v_2 );
-#    L_inv  = 1. / L;
-#    v_0   *= L_inv;
-#    v_1   *= L_inv;
-#    v_2   *= L_inv;
-#    L_half = 0.5 * L;
-#
-#    # edge midpoint                
-#    N_0    = 0.5 * (b_0_0 + b_1_0);
-#    N_1    = 0.5 * (b_0_1 + b_1_1);
-#    N_2    = 0.5 * (b_0_2 + b_1_2);
-#
-#    w_0    = N_0 - M_0;
-#    w_1    = N_1 - M_1;
-#    w_2    = N_2 - M_2;
-#
-#    # compute several scalar products that will be used frequently
-#    uv     = u_0 * v_0 + u_1 * v_1 + u_2 * v_2;
-#    uw     = u_0 * w_0 + u_1 * w_1 + u_2 * w_2;
-#    vw     = v_0 * w_0 + v_1 * w_1 + v_2 * w_2;
-#
-#    denom  = (1.0 - uv * uv);
-#    
-#    if denom < 0.0000000000000001 : #lines are parallel
-#        #first calculate the distace between the infinite lines
-#        Dinf = m.sqrt( w_0 * w_0 + w_1 * w_1 + w_2 * w_2 - uw * uw )
-#        #if the projection of the segements overlap then return Dinf, otherwise return the distance between the closest end points
-#
-#        if -K_half -uw  > L_half :
-#
-#            if uv > 0:#lines are oriented
-#            
-#                d_0 = a_0_0 - b_1_0;
-#                d_1 = a_0_1 - b_1_1;
-#                d_2 = a_0_2 - b_1_2;   
-#            
-#                return np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
-#                
-#            else:
-#                d_0 = a_0_0 - b_0_0;
-#                d_1 = a_0_1 - b_0_1;
-#                d_2 = a_0_2 - b_0_2;   
-#            
-#                return np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
-#        
-#        elif uw - K_half > L_half:
-#                
-#            if uv > 0:#lines are oriented
-#
-#                d_0 = a_1_0 - b_0_0;
-#                d_1 = a_1_1 - b_0_1;
-#                d_2 = a_1_2 - b_0_2;   
-#            
-#                return np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
-#
-#            else:
-#                d_0 = a_1_0 - b_1_0;
-#                d_1 = a_1_1 - b_1_1;
-#                d_2 = a_1_2 - b_1_2;   
-#            
-#                return np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
-#        else:
-#            return Dinf
-#    else:
-#        #first calculate the distace between the infinite lines
-#        factor = 1. / denom;
-#        s = (uw - uv * vw) * factor;
-#        t = (uv * uw - vw) * factor;
-#        
-#        d_0 = w_0 - s * u_0 + t * v_0;
-#        d_1 = w_1 - s * u_1 + t * v_1;
-#        d_2 = w_2 - s * u_2 + t * v_2;        
-#        
-#        Dinf = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
-#    
-#        s_0 = -s - K_half;
-#        s_1 = -s + K_half;
-#        t_0 = -t - L_half;
-#        t_1 = -t + L_half;
-#        
-#        #calculate the distance in the plane projected along the vector connecting the closest two points
-#        if ( s_0 * s_1 < 0 ) and ( t_0 * t_1 < 0 ) : #closest point is contained in the line segment
-#            return Dinf
-#        else:#closest point will envolve one of the end points
-#            #find the closest edge point to the points realising the minimal distance of the infinite lines
-#
-#            s_ = s_0 if abs(s_0) <= abs(s_1) else s_1        
-#            t_ = s_*uv;
-#            
-#            if t_0 < t_ < t_1 :
-#                
-#                f1 = (s_ * s_) * denom
-#                
-#            else :
-#                
-#                t_ = t_0 if abs(t_0 - t_) <= abs(t_1 - t_) else t_1;                
-#                f1 = s_ * s_ + t_ * t_ - 2.0 * s_ * t_ * uv
-#
-#            t_ = t_0 if abs(t_0) <= abs(t_1) else t_1;            
-#            s_ = t_ * uv;
-#            
-#            if s_0 < s_ < s_1 :
-#                
-#                f2 = (t_ * t_) * denom;
-#                
-#            else :
-#                
-#                s_ = s_0 if abs(s_0 - s_) <= abs(s_1 - s_) else s_1;                
-#                f2 = s_ * s_ + t_ * t_ - 2.0 * s_ * t_ * uv;
-#        
-#            return np.sqrt( Dinf*Dinf + min(f1, f2) )
+@njit
+def cLineToLineDistance(a, b):
+    """
+    Function: cLineToLineDistance
+    -----------------------------------------------------------------------------------------------------
+    function returns the distance between the line segments a and b
+    a  2 x 3 numpy.array
+    b  2 x 3 numpy.array
+    return float
+    """
+
+    a_0_0 = a[0,0];
+    a_0_1 = a[0,1];
+    a_0_2 = a[0,2];
+    a_1_0 = a[2,0];
+    a_1_1 = a[2,1];
+    a_1_2 = a[2,2];    
+    
+    # compute edge length and the edge unit vector
+    u_0    = a_1_0 - a_0_0;
+    u_1    = a_1_1 - a_0_1;
+    u_2    = a_1_2 - a_0_2;
+    K      = np.sqrt( u_0 * u_0 + u_1 * u_1 + u_2 * u_2 );
+    K_inv  = 1. / K;
+    u_0   *= K_inv;
+    u_1   *= K_inv;
+    u_2   *= K_inv;
+    K_half = 0.5 * K;
+
+    # edge midpoint
+    M_0    = 0.5 * (a_0_0 + a_1_0);
+    M_1    = 0.5 * (a_0_1 + a_1_1);
+    M_2    = 0.5 * (a_0_2 + a_1_2);
+    
+    b_0_0 = b[0,0];
+    b_0_1 = b[0,1];
+    b_0_2 = b[0,2];
+    b_1_0 = b[2,0];
+    b_1_1 = b[2,1];
+    b_1_2 = b[2,2];  
+
+    # compute edge length and the edge unit vector            
+    v_0    = b_1_0 - b_0_0;
+    v_1    = b_1_1 - b_0_1;
+    v_2    = b_1_2 - b_0_2;
+    L      = np.sqrt( v_0 * v_0 + v_1 * v_1 + v_2 * v_2 );
+    L_inv  = 1. / L;
+    v_0   *= L_inv;
+    v_1   *= L_inv;
+    v_2   *= L_inv;
+    L_half = 0.5 * L;
+
+    # edge midpoint                
+    N_0    = 0.5 * (b_0_0 + b_1_0);
+    N_1    = 0.5 * (b_0_1 + b_1_1);
+    N_2    = 0.5 * (b_0_2 + b_1_2);
+
+    w_0    = N_0 - M_0;
+    w_1    = N_1 - M_1;
+    w_2    = N_2 - M_2;
+
+    # compute several scalar products that will be used frequently
+    uv     = u_0 * v_0 + u_1 * v_1 + u_2 * v_2;
+    uw     = u_0 * w_0 + u_1 * w_1 + u_2 * w_2;
+    vw     = v_0 * w_0 + v_1 * w_1 + v_2 * w_2;
+
+    denom  = (1.0 - uv * uv);
+    
+    if denom < 0.0000000000000001 : #lines are parallel
+        #first calculate the distace between the infinite lines
+        Dinf = m.sqrt( w_0 * w_0 + w_1 * w_1 + w_2 * w_2 - uw * uw )
+        #if the projection of the segements overlap then return Dinf, otherwise return the distance between the closest end points
+
+        if -K_half -uw  > L_half :
+
+            if uv > 0:#lines are oriented
+            
+                d_0 = a_0_0 - b_1_0;
+                d_1 = a_0_1 - b_1_1;
+                d_2 = a_0_2 - b_1_2;   
+            
+                return np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
+                
+            else:
+                d_0 = a_0_0 - b_0_0;
+                d_1 = a_0_1 - b_0_1;
+                d_2 = a_0_2 - b_0_2;   
+            
+                return np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
+        
+        elif uw - K_half > L_half:
+                
+            if uv > 0:#lines are oriented
+
+                d_0 = a_1_0 - b_0_0;
+                d_1 = a_1_1 - b_0_1;
+                d_2 = a_1_2 - b_0_2;   
+            
+                return np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
+
+            else:
+                d_0 = a_1_0 - b_1_0;
+                d_1 = a_1_1 - b_1_1;
+                d_2 = a_1_2 - b_1_2;   
+            
+                return np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
+        else:
+            return Dinf
+    else:
+        #first calculate the distace between the infinite lines
+        factor = 1. / denom;
+        s = (uw - uv * vw) * factor;
+        t = (uv * uw - vw) * factor;
+        
+        d_0 = w_0 - s * u_0 + t * v_0;
+        d_1 = w_1 - s * u_1 + t * v_1;
+        d_2 = w_2 - s * u_2 + t * v_2;        
+        
+        Dinf = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
+    
+        s_0 = -s - K_half;
+        s_1 = -s + K_half;
+        t_0 = -t - L_half;
+        t_1 = -t + L_half;
+        
+        #calculate the distance in the plane projected along the vector connecting the closest two points
+        if ( s_0 * s_1 < 0 ) and ( t_0 * t_1 < 0 ) : #closest point is contained in the line segment
+            return Dinf
+        else:#closest point will envolve one of the end points
+            #find the closest edge point to the points realising the minimal distance of the infinite lines
+
+            s_ = s_0 if abs(s_0) <= abs(s_1) else s_1        
+            t_ = s_*uv;
+            
+            if t_0 < t_ < t_1 :
+                
+                f1 = (s_ * s_) * denom
+                
+            else :
+                
+                t_ = t_0 if abs(t_0 - t_) <= abs(t_1 - t_) else t_1;                
+                f1 = s_ * s_ + t_ * t_ - 2.0 * s_ * t_ * uv
+
+            t_ = t_0 if abs(t_0) <= abs(t_1) else t_1;            
+            s_ = t_ * uv;
+            
+            if s_0 < s_ < s_1 :
+                
+                f2 = (t_ * t_) * denom;
+                
+            else :
+                
+                s_ = s_0 if abs(s_0 - s_) <= abs(s_1 - s_) else s_1;                
+                f2 = s_ * s_ + t_ * t_ - 2.0 * s_ * t_ * uv;
+        
+            return np.sqrt( Dinf*Dinf + min(f1, f2) )
 
 def bisectBezierTraingle(b0, b1, b2):
     """
     Function: bisectBezierTriangle
     -------------------------------------------------------------------------------------------------------------------------------------------
+    used to bisect the curve once during the simulation
     returns two three tuples which defined the bezier triangles for the two arcs arising from besecting the arc difined by the bzier triangle (b0, b1, b2)
     """
     #find cos(delta) 
@@ -690,84 +688,84 @@ def bisectBezierTraingle(b0, b1, b2):
     
     return (triangle_0, triangle_1)
 
+#below method used in finding overlaps....?
+@njit
+def cBisectBezierTraingle(a):
+    """
+    Function: bisectBezierTriangle
+    ----------------------------------------------------------------------------------------------------------------------------------
+    returns tuple of (a0, a1) ai is numpy 3 x 3 array
+    two arcs arising from besecting the arc difined by the bzier triangle (b0, b1, b2)
+    """
+    a_0_0 = a[0,0];
+    a_0_1 = a[0,1];
+    a_0_2 = a[0,2];
+    a_1_0 = a[1,0];
+    a_1_1 = a[1,1];
+    a_1_2 = a[1,2];
+    a_2_0 = a[2,0];
+    a_2_1 = a[2,1];
+    a_2_2 = a[2,2];
+    
+    e1_0 = a_1_0 - a_0_0
+    e1_1 = a_1_1 - a_0_1
+    e1_2 = a_1_2 - a_0_2
+    
+    e_0 = a_2_0 - a_0_0
+    e_1 = a_2_1 - a_0_1
+    e_2 = a_2_2 - a_0_2
+    
+    denom = np.sqrt((e_0*e_0 + e_1*e_1 + e_2*e_2)*(e1_0*e1_0 + e1_1*e1_1 + e1_2*e1_2))
+    
+    e1dote = e_0*e1_0 + e_1*e1_1 + e_2*e1_2
+    M = 1./denom
+    omega = e1dote*M
+    
+    #evaluate the new points
+    om_plus_1_inv = 1./(1 + omega)
+    _2om_plus_2_inv = 1./(2 + 2*omega)
+    om_a_1_0 = omega*a_1_0
+    om_a_1_1 = omega*a_1_1
+    om_a_1_2 = omega*a_1_2
+    
+    
+    #b00 = b0
+    
+    #b01 = (np.array(b0) +  omega*np.array(b1))/(1 + omega)
+    a01_0 = a_0_0 + om_a_1_0
+    a01_1 = a_0_1 + om_a_1_1
+    a01_2 = a_0_2 + om_a_1_2
+    a01_0 *= om_plus_1_inv
+    a01_1 *= om_plus_1_inv
+    a01_2 *= om_plus_1_inv
+    
+    #a01 = [a01_0, a01_1, a01_2]
+    
+    #b02 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega)
+    a02_0 = a_0_0 + 2*om_a_1_0 + a_2_0
+    a02_1 = a_0_1 + 2*om_a_1_1 + a_2_1
+    a02_2 = a_0_2 + 2*om_a_1_2 + a_2_2
+    a02_0 *= _2om_plus_2_inv
+    a02_1 *= _2om_plus_2_inv
+    a02_2 *= _2om_plus_2_inv
+    
+    #a02 = [a02_0, a02_1, a02_2]
 
-#@njit
-#def cBisectBezierTraingle(a):
-#    """
-#    Function: bisectBezierTriangle
-#    ----------------------------------------------------------------------------------------------------------------------------------
-#    returns tuple of (a0, a1) ai is numpy 3 x 3 array
-#    two arcs arising from besecting the arc difined by the bzier triangle (b0, b1, b2)
-#    """
-#    a_0_0 = a[0,0];
-#    a_0_1 = a[0,1];
-#    a_0_2 = a[0,2];
-#    a_1_0 = a[1,0];
-#    a_1_1 = a[1,1];
-#    a_1_2 = a[1,2];
-#    a_2_0 = a[2,0];
-#    a_2_1 = a[2,1];
-#    a_2_2 = a[2,2];
-#    
-#    e1_0 = a_1_0 - a_0_0
-#    e1_1 = a_1_1 - a_0_1
-#    e1_2 = a_1_2 - a_0_2
-#    
-#    e_0 = a_2_0 - a_0_0
-#    e_1 = a_2_1 - a_0_1
-#    e_2 = a_2_2 - a_0_2
-#    
-#    denom = np.sqrt((e_0*e_0 + e_1*e_1 + e_2*e_2)*(e1_0*e1_0 + e1_1*e1_1 + e1_2*e1_2))
-#    
-#    e1dote = e_0*e1_0 + e_1*e1_1 + e_2*e1_2
-#    M = 1./denom
-#    omega = e1dote*M
-#    
-#    #evaluate the new points
-#    om_plus_1_inv = 1./(1 + omega)
-#    _2om_plus_2_inv = 1./(2 + 2*omega)
-#    om_a_1_0 = omega*a_1_0
-#    om_a_1_1 = omega*a_1_1
-#    om_a_1_2 = omega*a_1_2
-#    
-#    
-#    #b00 = b0
-#    
-#    #b01 = (np.array(b0) +  omega*np.array(b1))/(1 + omega)
-#    a01_0 = a_0_0 + om_a_1_0
-#    a01_1 = a_0_1 + om_a_1_1
-#    a01_2 = a_0_2 + om_a_1_2
-#    a01_0 *= om_plus_1_inv
-#    a01_1 *= om_plus_1_inv
-#    a01_2 *= om_plus_1_inv
-#    
-#    #a01 = [a01_0, a01_1, a01_2]
-#    
-#    #b02 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega)
-#    a02_0 = a_0_0 + 2*om_a_1_0 + a_2_0
-#    a02_1 = a_0_1 + 2*om_a_1_1 + a_2_1
-#    a02_2 = a_0_2 + 2*om_a_1_2 + a_2_2
-#    a02_0 *= _2om_plus_2_inv
-#    a02_1 *= _2om_plus_2_inv
-#    a02_2 *= _2om_plus_2_inv
-#    
-#    #a02 = [a02_0, a02_1, a02_2]
-#
-#    #b10 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega) = b02
-#    
-#    #b11 = (np.array(b2) +  omega*np.array(b1))/(1 + omega)
-#    a11_0 = a_2_0 + om_a_1_0
-#    a11_1 = a_2_1 + om_a_1_1
-#    a11_2 = a_2_2 + om_a_1_2
-#    a11_0 *= om_plus_1_inv
-#    a11_1 *= om_plus_1_inv
-#    a11_2 *= om_plus_1_inv
-#    
-#    #a11 = [a11_0, a11_1, a11_2]
-#    
-#    #b12 = b2
-#    
-#    return ( np.array([a_0_0, a_0_1 , a_0_2, a01_0, a01_1, a01_2, a02_0, a02_1, a02_2]).reshape(3,3), np.array([a02_0, a02_1, a02_2, a11_0, a11_1, a11_2, a_2_0, a_2_1, a_2_2]).reshape(3,3) ) 
+    #b10 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega) = b02
+    
+    #b11 = (np.array(b2) +  omega*np.array(b1))/(1 + omega)
+    a11_0 = a_2_0 + om_a_1_0
+    a11_1 = a_2_1 + om_a_1_1
+    a11_2 = a_2_2 + om_a_1_2
+    a11_0 *= om_plus_1_inv
+    a11_1 *= om_plus_1_inv
+    a11_2 *= om_plus_1_inv
+    
+    #a11 = [a11_0, a11_1, a11_2]
+    
+    #b12 = b2
+    
+    return ( np.array([a_0_0, a_0_1 , a_0_2, a01_0, a01_1, a01_2, a02_0, a02_1, a02_2]).reshape(3,3), np.array([a02_0, a02_1, a02_2, a11_0, a11_1, a11_2, a_2_0, a_2_1, a_2_2]).reshape(3,3) ) 
 
 def bisectAllTrianglePairsInList(triangleList):
     """
@@ -918,718 +916,719 @@ def distArcToArcWithinBoundForBezierCurve(b, a, closestDistanceBound, epsilon, w
                 
         return 1
 
-#@njit
-#def cDistArcToArcWithinErrorBound(a, b, closestDistanceBound, epsilon):
-#    
-#    """
-#    a 3 x 3 array
-#    b 3 x 3 numpy array
-#    """
-#    #compute errors in the verbose c way
-#    a_0_0 = a[0,0];
-#    a_0_1 = a[0,1];
-#    a_0_2 = a[0,2];
-#    a_1_0 = a[1,0];
-#    a_1_1 = a[1,1];
-#    a_1_2 = a[1,2];
-#    a_2_0 = a[2,0];
-#    a_2_1 = a[2,1];
-#    a_2_2 = a[2,2];
-#    
-#    t0_0 = a_1_0 - a_0_0
-#    t0_1 = a_1_1 - a_0_1
-#    t0_2 = a_1_2 - a_0_2
-#    t0_len = np.sqrt(t0_0*t0_0 + t0_1*t0_1 + t0_2*t0_2)
-#    t0_len_inv = 1./t0_len
-#    t0_0*=t0_len_inv
-#    t0_1*=t0_len_inv
-#    t0_2*=t0_len_inv
-#    
-#    t1_0 = a_2_0 - a_1_0
-#    t1_1 = a_2_1 - a_1_1
-#    t1_2 = a_2_2 - a_1_2
-#    t1_len = np.sqrt(t1_0*t1_0 + t1_1*t1_1 + t1_2*t1_2)
-#    t1_len_inv = 1./t0_len
-#    t1_0*=t1_len_inv
-#    t1_1*=t1_len_inv
-#    t1_2*=t1_len_inv
-#    
-#    t0Dott1 = t0_0*t1_0 + t0_1*t1_1 +t0_2*t1_2
-#    om_a = np.sqrt(min(0.5*(1 + t0Dott1), 0.99999598))
-#    eps_a = om_a*np.sqrt(((1 - om_a)/(1 + om_a))*((a_0_0 - a_2_0)*(a_0_0 - a_2_0) + (a_0_1 - a_2_1)*(a_0_1 - a_2_1) + (a_0_2 - a_2_2)*(a_0_2 - a_2_2)))
-#    
-#    b_0_0 = b[0,0];
-#    b_0_1 = b[0,1];
-#    b_0_2 = b[0,2];
-#    b_1_0 = b[1,0];
-#    b_1_1 = b[1,1];
-#    b_1_2 = b[1,2];
-#    b_2_0 = b[2,0];
-#    b_2_1 = b[2,1];
-#    b_2_2 = b[2,2];
-#    
-#    t0_0 = b_1_0 - b_0_0
-#    t0_1 = b_1_1 - b_0_1
-#    t0_2 = b_1_2 - b_0_2
-#    t0_len = np.sqrt(t0_0*t0_0 + t0_1*t0_1 + t0_2*t0_2)
-#    t0_len_inv = 1./t0_len
-#    t0_0*=t0_len_inv
-#    t0_1*=t0_len_inv
-#    t0_2*=t0_len_inv
-#    
-#    t1_0 = b_2_0 - b_1_0
-#    t1_1 = b_2_1 - b_1_1
-#    t1_2 = b_2_2 - b_1_2
-#    t1_len = np.sqrt(t1_0*t1_0 + t1_1*t1_1 + t1_2*t1_2)
-#    t1_len_inv = 1./t0_len
-#    t1_0*=t1_len_inv
-#    t1_1*=t1_len_inv
-#    t1_2*=t1_len_inv
-#    
-#    t0Dott1 = t0_0*t1_0 + t0_1*t1_1 +t0_2*t1_2
-#    om_b = np.sqrt(min(0.5*(1 + t0Dott1), 0.99999598))
-#    eps_b = om_b*np.sqrt(((1 - om_b)/(1 + om_b))*((b_0_0 - b_2_0)*(b_0_0 - b_2_0) + (b_0_1 - b_2_1)*(b_0_1 - b_2_1) + (b_0_2 - b_2_2)*(b_0_2 - b_2_2)))
-#    
-#    #now the depth lifo
-#    stack=[((a, b), 0)] #inialised the queue
-#    err_a = [(eps_a, om_a)]
-#    err_b = [(eps_b, om_b)]
-#
-#    while len(stack)>0:
-#        
-#        ((a,b), depth) = stack.pop()
-#        
-#        #first compute the line 2 line distance as in cLineToLineDistance_2
-#        a_0_0 = a[0,0];
-#        a_0_1 = a[0,1];
-#        a_0_2 = a[0,2];
-#        a_2_0 = a[2,0];
-#        a_2_1 = a[2,1];
-#        a_2_2 = a[2,2];    
-#    
-#        # compute edge length and the edge unit vector
-#        u_0    = a_2_0 - a_0_0;
-#        u_1    = a_2_1 - a_0_1;
-#        u_2    = a_2_2 - a_0_2;
-#        K      = np.sqrt( u_0 * u_0 + u_1 * u_1 + u_2 * u_2 );
-#        K_inv  = 1. / K;
-#        u_0   *= K_inv;
-#        u_1   *= K_inv;
-#        u_2   *= K_inv;
-#        K_half = 0.5 * K;
-#
-#        # edge midpoint
-#        M_0    = 0.5 * (a_0_0 + a_2_0);
-#        M_1    = 0.5 * (a_0_1 + a_2_1);
-#        M_2    = 0.5 * (a_0_2 + a_2_2);
-#    
-#        b_0_0 = b[0,0];
-#        b_0_1 = b[0,1];
-#        b_0_2 = b[0,2];
-#        b_2_0 = b[2,0];
-#        b_2_1 = b[2,1];
-#        b_2_2 = b[2,2];  
-#
-#        # compute edge length and the edge unit vector            
-#        v_0    = b_2_0 - b_0_0;
-#        v_1    = b_2_1 - b_0_1;
-#        v_2    = b_2_2 - b_0_2;
-#        L      = np.sqrt( v_0 * v_0 + v_1 * v_1 + v_2 * v_2 );
-#        L_inv  = 1. / L;
-#        v_0   *= L_inv;
-#        v_1   *= L_inv;
-#        v_2   *= L_inv;
-#        L_half = 0.5 * L;
-#
-#        # edge midpoint                
-#        N_0    = 0.5 * (b_0_0 + b_2_0);
-#        N_1    = 0.5 * (b_0_1 + b_2_1);
-#        N_2    = 0.5 * (b_0_2 + b_2_2);
-#
-#        w_0    = N_0 - M_0;
-#        w_1    = N_1 - M_1;
-#        w_2    = N_2 - M_2;
-#
-#        # compute several scalar products that will be used frequently
-#        uv     = u_0 * v_0 + u_1 * v_1 + u_2 * v_2;
-#        uw     = u_0 * w_0 + u_1 * w_1 + u_2 * w_2;
-#        vw     = v_0 * w_0 + v_1 * w_1 + v_2 * w_2;
-#
-#        denom  = (1.0 - uv * uv);
-#    
-#        if denom < 0.0000000000000001 : #lines are parallel
-#            #first calculate the distace between the infinite lines
-#            Dinf = m.sqrt( w_0 * w_0 + w_1 * w_1 + w_2 * w_2 - uw * uw )
-#
-#            #if the projection of the segements overlap then return Dinf, otherwise return the distance between the closest end points
-#            if -K_half - uw  > L_half :
-#                if uv > 0:
-#            
-#                    d_0 = a_0_0 - b_2_0;
-#                    d_1 = a_0_1 - b_2_1;
-#                    d_2 = a_0_2 - b_2_2;   
-#            
-#                    dl2l = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
-#                
-#                else:
-#                    d_0 = a_0_0 - b_0_0;
-#                    d_1 = a_0_1 - b_0_1;
-#                    d_2 = a_0_2 - b_0_2;   
-#            
-#                    dl2l = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
-#        
-#            elif uw - K_half > L_half:
-#                
-#                if uv > 0:#lines are oriented
-#                    d_0 = a_2_0 - b_0_0;
-#                    d_1 = a_2_1 - b_0_1;
-#                    d_2 = a_2_2 - b_0_2;   
-#            
-#                    dl2l = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
-#
-#                else:
-#                    d_0 = a_2_0 - b_2_0;
-#                    d_1 = a_2_1 - b_2_1;
-#                    d_2 = a_2_2 - b_2_2;   
-#            
-#                    dl2l = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
-#        
-#            else:
-#                dl2l = Dinf
-#        else:
-#            #first calculate the distace between the infinite lines
-#            factor = 1. / denom;
-#            s = (uw - uv * vw) * factor;
-#            t = (uv * uw - vw) * factor;
-#        
-#            d_0 = w_0 - s * u_0 + t * v_0;
-#            d_1 = w_1 - s * u_1 + t * v_1;
-#            d_2 = w_2 - s * u_2 + t * v_2;        
-#        
-#            Dinf = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
-#    
-#            s_0 = -s - K_half;
-#            s_1 = -s + K_half;
-#            t_0 = -t - L_half;
-#            t_1 = -t + L_half;
-#        
-#            #calculate the distance in the plane projected along the vector connecting the closest two points
-#            if ( s_0 * s_1 < 0 ) and ( t_0 * t_1 < 0 ) : #closest point is contained in the line segment
-#                 dl2l = Dinf
-#            else:#closest point will envolve one of the end points
-#            #find the closest edge point to the points realising the minimal distance of the infinite lines
-#
-#                s_ = s_0 if abs(s_0) <= abs(s_1) else s_1        
-#                t_ = s_*uv;
-#            
-#                if t_0 < t_ < t_1 :
-#                
-#                    f1 = (s_ * s_) * denom
-#                
-#                else :
-#                
-#                    t_ = t_0 if abs(t_0 - t_) <= abs(t_1 - t_) else t_1;                
-#                    f1 = s_ * s_ + t_ * t_ - 2.0 * s_ * t_ * uv
-#
-#                t_ = t_0 if abs(t_0) <= abs(t_1) else t_1;#seems like Henrik has made mistake here, check     
-#                s_ = t_ * uv;
-#            
-#                if s_0 < s_ < s_1 :
-#                
-#                    f2 = (t_ * t_) * denom;
-#                
-#                else :
-#                
-#                    s_ = s_0 if abs(s_0 - s_) <= abs(s_1 - s_) else s_1;                
-#                    f2 = s_ * s_ + t_ * t_ - 2.0 * s_ * t_ * uv;
-#        
-#                dl2l = np.sqrt( Dinf*Dinf + min(f1, f2) )
-#    
-#        # update errors in the verbose c way by using depth
-#        if len(err_a) < depth + 1:#need to update the errors and append them to the list
-#            tmp1 = np.sqrt(0.5*(1 + err_a[-1][1]))
-#            tmp0 = err_a[-1][0]*(1./(2 + np.sqrt(2*(1 + err_a[-1][1]))))
-#            err_a.append((tmp0, tmp1))
-#            
-#            tmp1 = np.sqrt(0.5*(1 + err_b[-1][1]))
-#            tmp0 = err_b[-1][0]*(1./(2 + np.sqrt(2*(1 + err_b[-1][1]))))
-#            err_b.append((tmp0, tmp1))
-#        
-#        error = err_a[depth][0] + err_b[depth][0]
-#
-#        if dl2l + error < closestDistanceBound:#violates reach constraint
-#            return 1
-#        elif dl2l - error < closestDistanceBound:#need to process arc pair further
-#            if error < epsilon:#violates contraint within accuracy bounds
-#                return 1
-#        
-#            #bisect the arc pair and get four arc pair children
-#            a_1_0 = a[1,0];
-#            a_1_1 = a[1,1];
-#            a_1_2 = a[1,2];
-#        
-#            omega = err_a[depth][1]  
-#
-#            #evaluate the new points
-#            om_plus_1_inv = 1./(1 + omega)
-#            _2om_plus_2_inv = 1./(2 + 2*omega)
-#            om_a_1_0 = omega*a_1_0
-#            om_a_1_1 = omega*a_1_1
-#            om_a_1_2 = omega*a_1_2
-#
-#            #b00 = b0
-#
-#            #b01 = (np.array(b0) +  omega*np.array(b1))/(1 + omega)
-#            a01_0 = a_0_0 + om_a_1_0
-#            a01_1 = a_0_1 + om_a_1_1
-#            a01_2 = a_0_2 + om_a_1_2
-#            a01_0 *= om_plus_1_inv
-#            a01_1 *= om_plus_1_inv
-#            a01_2 *= om_plus_1_inv
-#            #a01 = [a01_0, a01_1, a01_2]
-#
-#            #b02 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega)
-#            a02_0 = a_0_0 + 2*om_a_1_0 + a_2_0
-#            a02_1 = a_0_1 + 2*om_a_1_1 + a_2_1
-#            a02_2 = a_0_2 + 2*om_a_1_2 + a_2_2
-#            a02_0 *= _2om_plus_2_inv
-#            a02_1 *= _2om_plus_2_inv
-#            a02_2 *= _2om_plus_2_inv
-#            #a02 = [a02_0, a02_1, a02_2]
-#
-#            #b10 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega) = b02
-#
-#            #b11 = (np.array(b2) +  omega*np.array(b1))/(1 + omega)
-#            a11_0 = a_2_0 + om_a_1_0
-#            a11_1 = a_2_1 + om_a_1_1
-#            a11_2 = a_2_2 + om_a_1_2
-#            a11_0 *= om_plus_1_inv
-#            a11_1 *= om_plus_1_inv
-#            a11_2 *= om_plus_1_inv
-#            #a11 = [a11_0, a11_1, a11_2]
-#
-#            #b12 = b2
-#
-#            a0 = np.array([a_0_0, a_0_1 , a_0_2, a01_0, a01_1, a01_2, a02_0, a02_1, a02_2]).reshape(3,3)
-#            a1 = np.array([a02_0, a02_1, a02_2, a11_0, a11_1, a11_2, a_2_0, a_2_1, a_2_2]).reshape(3,3)
-#
-#
-#            b_1_0 = b[1,0];
-#            b_1_1 = b[1,1];
-#            b_1_2 = b[1,2];
-#
-#            omega = err_b[depth][1]  
-#
-#            #evaluate the new points
-#            om_plus_1_inv = 1./(1 + omega)
-#            _2om_plus_2_inv = 1./(2 + 2*omega)
-#            om_b_1_0 = omega*b_1_0
-#            om_b_1_1 = omega*b_1_1
-#            om_b_1_2 = omega*b_1_2
-#
-#            #b00 = b0
-#
-#            #b01 = (np.array(b0) +  omega*np.array(b1))/(1 + omega)
-#            b01_0 = b_0_0 + om_b_1_0
-#            b01_1 = b_0_1 + om_b_1_1
-#            b01_2 = b_0_2 + om_b_1_2
-#            b01_0 *= om_plus_1_inv
-#            b01_1 *= om_plus_1_inv
-#            b01_2 *= om_plus_1_inv
-#            #a01 = [a01_0, a01_1, a01_2]
-#
-#            #b02 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega)
-#            b02_0 = b_0_0 + 2*om_b_1_0 + b_2_0
-#            b02_1 = b_0_1 + 2*om_b_1_1 + b_2_1
-#            b02_2 = b_0_2 + 2*om_b_1_2 + b_2_2
-#            b02_0 *= _2om_plus_2_inv
-#            b02_1 *= _2om_plus_2_inv
-#            b02_2 *= _2om_plus_2_inv
-#            #a02 = [a02_0, a02_1, a02_2]
-#
-#            #b10 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega) = b02
-#
-#            #b11 = (np.array(b2) +  omega*np.array(b1))/(1 + omega)
-#            b11_0 = b_2_0 + om_b_1_0
-#            b11_1 = b_2_1 + om_b_1_1
-#            b11_2 = b_2_2 + om_b_1_2
-#            b11_0 *= om_plus_1_inv
-#            b11_1 *= om_plus_1_inv
-#            b11_2 *= om_plus_1_inv
-#            #a11 = [a11_0, a11_1, a11_2]
-#
-#            #b12 = b2
-#
-#            b0 = np.array([b_0_0, b_0_1 , b_0_2, b01_0, b01_1, b01_2, b02_0, b02_1, b02_2]).reshape(3,3)
-#            b1 = np.array([b02_0, b02_1, b02_2, b11_0, b11_1, b11_2, b_2_0, b_2_1, b_2_2]).reshape(3,3)       
-#
-#            #append arc pair children to stack [((a002, b002), depth+1) ((a102, b002), depth+1) ...]
-#            stack.append(((a0, b0), depth+1))
-#            stack.append(((a0, b1), depth+1))
-#            stack.append(((a1, b0), depth+1))
-#            stack.append(((a1, b1), depth+1))
-#    return 0
+@njit
+def cDistArcToArcWithinErrorBound(a, b, closestDistanceBound, epsilon):
+    
+    """
+    used in curve_object.check_new_positions_do_not_cause_overlaps for curve_object type biarc
+    a 3 x 3 array
+    b 3 x 3 numpy array
+    """
+    #compute errors in the verbose c way
+    a_0_0 = a[0,0];
+    a_0_1 = a[0,1];
+    a_0_2 = a[0,2];
+    a_1_0 = a[1,0];
+    a_1_1 = a[1,1];
+    a_1_2 = a[1,2];
+    a_2_0 = a[2,0];
+    a_2_1 = a[2,1];
+    a_2_2 = a[2,2];
+    
+    t0_0 = a_1_0 - a_0_0
+    t0_1 = a_1_1 - a_0_1
+    t0_2 = a_1_2 - a_0_2
+    t0_len = np.sqrt(t0_0*t0_0 + t0_1*t0_1 + t0_2*t0_2)
+    t0_len_inv = 1./t0_len
+    t0_0*=t0_len_inv
+    t0_1*=t0_len_inv
+    t0_2*=t0_len_inv
+    
+    t1_0 = a_2_0 - a_1_0
+    t1_1 = a_2_1 - a_1_1
+    t1_2 = a_2_2 - a_1_2
+    t1_len = np.sqrt(t1_0*t1_0 + t1_1*t1_1 + t1_2*t1_2)
+    t1_len_inv = 1./t0_len
+    t1_0*=t1_len_inv
+    t1_1*=t1_len_inv
+    t1_2*=t1_len_inv
+    
+    t0Dott1 = t0_0*t1_0 + t0_1*t1_1 +t0_2*t1_2
+    om_a = np.sqrt(min(0.5*(1 + t0Dott1), 0.99999598))
+    eps_a = om_a*np.sqrt(((1 - om_a)/(1 + om_a))*((a_0_0 - a_2_0)*(a_0_0 - a_2_0) + (a_0_1 - a_2_1)*(a_0_1 - a_2_1) + (a_0_2 - a_2_2)*(a_0_2 - a_2_2)))
+    
+    b_0_0 = b[0,0];
+    b_0_1 = b[0,1];
+    b_0_2 = b[0,2];
+    b_1_0 = b[1,0];
+    b_1_1 = b[1,1];
+    b_1_2 = b[1,2];
+    b_2_0 = b[2,0];
+    b_2_1 = b[2,1];
+    b_2_2 = b[2,2];
+    
+    t0_0 = b_1_0 - b_0_0
+    t0_1 = b_1_1 - b_0_1
+    t0_2 = b_1_2 - b_0_2
+    t0_len = np.sqrt(t0_0*t0_0 + t0_1*t0_1 + t0_2*t0_2)
+    t0_len_inv = 1./t0_len
+    t0_0*=t0_len_inv
+    t0_1*=t0_len_inv
+    t0_2*=t0_len_inv
+    
+    t1_0 = b_2_0 - b_1_0
+    t1_1 = b_2_1 - b_1_1
+    t1_2 = b_2_2 - b_1_2
+    t1_len = np.sqrt(t1_0*t1_0 + t1_1*t1_1 + t1_2*t1_2)
+    t1_len_inv = 1./t0_len
+    t1_0*=t1_len_inv
+    t1_1*=t1_len_inv
+    t1_2*=t1_len_inv
+    
+    t0Dott1 = t0_0*t1_0 + t0_1*t1_1 +t0_2*t1_2
+    om_b = np.sqrt(min(0.5*(1 + t0Dott1), 0.99999598))
+    eps_b = om_b*np.sqrt(((1 - om_b)/(1 + om_b))*((b_0_0 - b_2_0)*(b_0_0 - b_2_0) + (b_0_1 - b_2_1)*(b_0_1 - b_2_1) + (b_0_2 - b_2_2)*(b_0_2 - b_2_2)))
+    
+    #now the depth lifo
+    stack=[((a, b), 0)] #inialised the queue
+    err_a = [(eps_a, om_a)]
+    err_b = [(eps_b, om_b)]
 
-#@njit
-#def cReturnDistArcToArcBounds(a, b, epsilon):
-#    
-#    """
-#    a 3 x 3 array
-#    b 3 x 3 numpy array
-#    """
-#    #compute errors in the verbose c way
-#    a_0_0 = a[0,0];
-#    a_0_1 = a[0,1];
-#    a_0_2 = a[0,2];
-#    a_1_0 = a[1,0];
-#    a_1_1 = a[1,1];
-#    a_1_2 = a[1,2];
-#    a_2_0 = a[2,0];
-#    a_2_1 = a[2,1];
-#    a_2_2 = a[2,2];
-#    
-#    t0_0 = a_1_0 - a_0_0
-#    t0_1 = a_1_1 - a_0_1
-#    t0_2 = a_1_2 - a_0_2
-#    t0_len = np.sqrt(t0_0*t0_0 + t0_1*t0_1 + t0_2*t0_2)
-#    t0_len_inv = 1./t0_len
-#    t0_0*=t0_len_inv
-#    t0_1*=t0_len_inv
-#    t0_2*=t0_len_inv
-#    
-#    t1_0 = a_2_0 - a_1_0
-#    t1_1 = a_2_1 - a_1_1
-#    t1_2 = a_2_2 - a_1_2
-#    t1_len = np.sqrt(t1_0*t1_0 + t1_1*t1_1 + t1_2*t1_2)
-#    t1_len_inv = 1./t0_len
-#    t1_0*=t1_len_inv
-#    t1_1*=t1_len_inv
-#    t1_2*=t1_len_inv
-#    
-#    t0Dott1 = t0_0*t1_0 + t0_1*t1_1 +t0_2*t1_2
-#    om_a = np.sqrt(min(0.5*(1 + t0Dott1), 0.99999598))
-#    eps_a = om_a*np.sqrt(((1 - om_a)/(1 + om_a))*((a_0_0 - a_2_0)*(a_0_0 - a_2_0) + (a_0_1 - a_2_1)*(a_0_1 - a_2_1) + (a_0_2 - a_2_2)*(a_0_2 - a_2_2)))
-#    
-#    b_0_0 = b[0,0];
-#    b_0_1 = b[0,1];
-#    b_0_2 = b[0,2];
-#    b_1_0 = b[1,0];
-#    b_1_1 = b[1,1];
-#    b_1_2 = b[1,2];
-#    b_2_0 = b[2,0];
-#    b_2_1 = b[2,1];
-#    b_2_2 = b[2,2];
-#    
-#    t0_0 = b_1_0 - b_0_0
-#    t0_1 = b_1_1 - b_0_1
-#    t0_2 = b_1_2 - b_0_2
-#    t0_len = np.sqrt(t0_0*t0_0 + t0_1*t0_1 + t0_2*t0_2)
-#    t0_len_inv = 1./t0_len
-#    t0_0*=t0_len_inv
-#    t0_1*=t0_len_inv
-#    t0_2*=t0_len_inv
-#    
-#    t1_0 = b_2_0 - b_1_0
-#    t1_1 = b_2_1 - b_1_1
-#    t1_2 = b_2_2 - b_1_2
-#    t1_len = np.sqrt(t1_0*t1_0 + t1_1*t1_1 + t1_2*t1_2)
-#    t1_len_inv = 1./t0_len
-#    t1_0*=t1_len_inv
-#    t1_1*=t1_len_inv
-#    t1_2*=t1_len_inv
-#    
-#    t0Dott1 = t0_0*t1_0 + t0_1*t1_1 +t0_2*t1_2
-#    om_b = np.sqrt(min(0.5*(1 + t0Dott1), 0.99999598))
-#    eps_b = om_b*np.sqrt(((1 - om_b)/(1 + om_b))*((b_0_0 - b_2_0)*(b_0_0 - b_2_0) + (b_0_1 - b_2_1)*(b_0_1 - b_2_1) + (b_0_2 - b_2_2)*(b_0_2 - b_2_2)))
-#    
-#    #now the depth info
-#    stack=[((a, b), 0)] #inialised the stack
-#    err_a = [(eps_a, om_a)]
-#    err_b = [(eps_b, om_b)]
-#
-#    upper_bound = 100.0
-#    while len(stack)>0:
-#        
-#        ((a,b), depth) = stack.pop()
-#        lower_bound = 0.0 # the lower_bound is not monotonically increasing with the depth
-#        
-#        #first compute the line 2 line distance as in cLineToLineDistance_2
-#        a_0_0 = a[0,0];
-#        a_0_1 = a[0,1];
-#        a_0_2 = a[0,2];
-#        a_2_0 = a[2,0];
-#        a_2_1 = a[2,1];
-#        a_2_2 = a[2,2];    
-#    
-#        # compute edge length and the edge unit vector
-#        u_0    = a_2_0 - a_0_0;
-#        u_1    = a_2_1 - a_0_1;
-#        u_2    = a_2_2 - a_0_2;
-#        K      = np.sqrt( u_0 * u_0 + u_1 * u_1 + u_2 * u_2 );
-#        K_inv  = 1. / K;
-#        u_0   *= K_inv;
-#        u_1   *= K_inv;
-#        u_2   *= K_inv;
-#        K_half = 0.5 * K;
-#
-#        # edge midpoint
-#        M_0    = 0.5 * (a_0_0 + a_2_0);
-#        M_1    = 0.5 * (a_0_1 + a_2_1);
-#        M_2    = 0.5 * (a_0_2 + a_2_2);
-#    
-#        b_0_0 = b[0,0];
-#        b_0_1 = b[0,1];
-#        b_0_2 = b[0,2];
-#        b_2_0 = b[2,0];
-#        b_2_1 = b[2,1];
-#        b_2_2 = b[2,2];  
-#
-#        # compute edge length and the edge unit vector            
-#        v_0    = b_2_0 - b_0_0;
-#        v_1    = b_2_1 - b_0_1;
-#        v_2    = b_2_2 - b_0_2;
-#        L      = np.sqrt( v_0 * v_0 + v_1 * v_1 + v_2 * v_2 );
-#        L_inv  = 1. / L;
-#        v_0   *= L_inv;
-#        v_1   *= L_inv;
-#        v_2   *= L_inv;
-#        L_half = 0.5 * L;
-#
-#        # edge midpoint                
-#        N_0    = 0.5 * (b_0_0 + b_2_0);
-#        N_1    = 0.5 * (b_0_1 + b_2_1);
-#        N_2    = 0.5 * (b_0_2 + b_2_2);
-#
-#        w_0    = N_0 - M_0;
-#        w_1    = N_1 - M_1;
-#        w_2    = N_2 - M_2;
-#
-#        # compute several scalar products that will be used frequently
-#        uv     = u_0 * v_0 + u_1 * v_1 + u_2 * v_2;
-#        uw     = u_0 * w_0 + u_1 * w_1 + u_2 * w_2;
-#        vw     = v_0 * w_0 + v_1 * w_1 + v_2 * w_2;
-#
-#        denom  = (1.0 - uv * uv);
-#    
-#        if denom < 0.0000000000000001 : #lines are parallel
-#            #first calculate the distace between the infinite lines
-#            Dinf = m.sqrt( w_0 * w_0 + w_1 * w_1 + w_2 * w_2 - uw * uw )
-#            
-#            #if the projection of the segements overlap then return Dinf, otherwise return the distance between the closest end points
-#            if -K_half - uw  > L_half :
-#                if uv > 0:
-#            
-#                    d_0 = a_0_0 - b_2_0;
-#                    d_1 = a_0_1 - b_2_1;
-#                    d_2 = a_0_2 - b_2_2;   
-#            
-#                    dl2l = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
-#                
-#                else:
-#                    d_0 = a_0_0 - b_0_0;
-#                    d_1 = a_0_1 - b_0_1;
-#                    d_2 = a_0_2 - b_0_2;   
-#            
-#                    dl2l = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
-#        
-#            elif uw - K_half > L_half:
-#                
-#                if uv > 0:#lines are oriented
-#                    d_0 = a_2_0 - b_0_0;
-#                    d_1 = a_2_1 - b_0_1;
-#                    d_2 = a_2_2 - b_0_2;   
-#            
-#                    dl2l = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
-#
-#                else:
-#                    d_0 = a_2_0 - b_2_0;
-#                    d_1 = a_2_1 - b_2_1;
-#                    d_2 = a_2_2 - b_2_2;   
-#            
-#                    dl2l = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
-#        
-#            else:
-#                dl2l = Dinf
-#        else:
-#            #first calculate the distace between the infinite lines
-#            factor = 1. / denom;
-#            s = (uw - uv * vw) * factor;
-#            t = (uv * uw - vw) * factor;
-#        
-#            d_0 = w_0 - s * u_0 + t * v_0;
-#            d_1 = w_1 - s * u_1 + t * v_1;
-#            d_2 = w_2 - s * u_2 + t * v_2;        
-#        
-#            Dinf = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
-#    
-#            s_0 = -s - K_half;
-#            s_1 = -s + K_half;
-#            t_0 = -t - L_half;
-#            t_1 = -t + L_half;
-#        
-#            #calculate the distance in the plane projected along the vector connecting the closest two points
-#            if ( s_0 * s_1 < 0 ) and ( t_0 * t_1 < 0 ) : #closest point is contained in the line segment
-#                dl2l = Dinf
-#            else:#closest point will envolve one of the end points
-#                #find the closest edge point to the points realising the minimal distance of the infinite lines
-#
-#                s_ = s_0 if abs(s_0) <= abs(s_1) else s_1        
-#                t_ = s_*uv;
-#            
-#                if t_0 < t_ < t_1 :
-#                
-#                    f1 = (s_ * s_) * denom
-#                
-#                else :
-#                
-#                    t_ = t_0 if abs(t_0 - t_) <= abs(t_1 - t_) else t_1;                
-#                    f1 = s_ * s_ + t_ * t_ - 2.0 * s_ * t_ * uv
-#
-#                t_ = t_0 if abs(t_0) <= abs(t_1) else t_1;            
-#                s_ = t_ * uv;
-#            
-#                if s_0 < s_ < s_1 :
-#                
-#                    f2 = (t_ * t_) * denom;
-#                
-#                else :
-#                
-#                    s_ = s_0 if abs(s_0 - s_) <= abs(s_1 - s_) else s_1;                
-#                    f2 = s_ * s_ + t_ * t_ - 2.0 * s_ * t_ * uv;
-#        
-#                dl2l = np.sqrt( Dinf*Dinf + min(f1, f2) )
-#           
-#        # update errors in the verbose c way by using depth
-#        if len(err_a) < depth + 1:#need to update the errors and append them to the list
-#            tmp1 = np.sqrt(0.5*(1 + err_a[-1][1]))
-#            tmp0 = err_a[-1][0]*(1./(2 + np.sqrt(2*(1 + err_a[-1][1]))))
-#            err_a.append((tmp0, tmp1))
-#            
-#            tmp1 = np.sqrt(0.5*(1 + err_b[-1][1]))
-#            tmp0 = err_b[-1][0]*(1./(2 + np.sqrt(2*(1 + err_b[-1][1]))))
-#            err_b.append((tmp0, tmp1))
-#        
-#        error = err_a[depth][0] + err_b[depth][0]
-#        
-#        #print(depth, dl2l, dl2l - error, dl2l + error)
-#        if dl2l - error < upper_bound:#arc sub pair to further process
-#            if upper_bound > dl2l + error:
-#                upper_bound = dl2l + error
-#                #print(depth, (lower_bound, upper_bound), "least upper bound")
-#            if lower_bound < dl2l -error:#take the greatest lower bound of those lower bounds less than the upper bound
-#                lower_bound = dl2l - error
-#                #print(depth, (lower_bound, upper_bound), "greatest lower bound")
-#            if error < epsilon:#evaluate within accuracy bounds
-#                #print("depth = ", depth, "error", err_a[depth], err_b[depth])
-#                return (lower_bound, upper_bound)
-#            
-#            #bisect the arc pair and get four arc pair children
-#            a_1_0 = a[1,0];
-#            a_1_1 = a[1,1];
-#            a_1_2 = a[1,2];
-#        
-#            omega = err_a[depth][1]  
-#
-#            #evaluate the new points
-#            om_plus_1_inv = 1./(1 + omega)
-#            _2om_plus_2_inv = 1./(2 + 2*omega)
-#            om_a_1_0 = omega*a_1_0
-#            om_a_1_1 = omega*a_1_1
-#            om_a_1_2 = omega*a_1_2
-#
-#            #b00 = b0
-#
-#            #b01 = (np.array(b0) +  omega*np.array(b1))/(1 + omega)
-#            a01_0 = a_0_0 + om_a_1_0
-#            a01_1 = a_0_1 + om_a_1_1
-#            a01_2 = a_0_2 + om_a_1_2
-#            a01_0 *= om_plus_1_inv
-#            a01_1 *= om_plus_1_inv
-#            a01_2 *= om_plus_1_inv
-#            #a01 = [a01_0, a01_1, a01_2]
-#
-#            #b02 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega)
-#            a02_0 = a_0_0 + 2*om_a_1_0 + a_2_0
-#            a02_1 = a_0_1 + 2*om_a_1_1 + a_2_1
-#            a02_2 = a_0_2 + 2*om_a_1_2 + a_2_2
-#            a02_0 *= _2om_plus_2_inv
-#            a02_1 *= _2om_plus_2_inv
-#            a02_2 *= _2om_plus_2_inv
-#            #a02 = [a02_0, a02_1, a02_2]
-#
-#            #b10 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega) = b02
-#
-#            #b11 = (np.array(b2) +  omega*np.array(b1))/(1 + omega)
-#            a11_0 = a_2_0 + om_a_1_0
-#            a11_1 = a_2_1 + om_a_1_1
-#            a11_2 = a_2_2 + om_a_1_2
-#            a11_0 *= om_plus_1_inv
-#            a11_1 *= om_plus_1_inv
-#            a11_2 *= om_plus_1_inv
-#            #a11 = [a11_0, a11_1, a11_2]
-#
-#            #b12 = b2
-#
-#            a0 = np.array([a_0_0, a_0_1 , a_0_2, a01_0, a01_1, a01_2, a02_0, a02_1, a02_2]).reshape(3,3)
-#            a1 = np.array([a02_0, a02_1, a02_2, a11_0, a11_1, a11_2, a_2_0, a_2_1, a_2_2]).reshape(3,3)
-#
-#
-#            b_1_0 = b[1,0];
-#            b_1_1 = b[1,1];
-#            b_1_2 = b[1,2];
-#
-#            omega = err_b[depth][1]  
-#
-#            #evaluate the new points
-#            om_plus_1_inv = 1./(1 + omega)
-#            _2om_plus_2_inv = 1./(2 + 2*omega)
-#            om_b_1_0 = omega*b_1_0
-#            om_b_1_1 = omega*b_1_1
-#            om_b_1_2 = omega*b_1_2
-#
-#            #b00 = b0
-#
-#            #b01 = (np.array(b0) +  omega*np.array(b1))/(1 + omega)
-#            b01_0 = b_0_0 + om_b_1_0
-#            b01_1 = b_0_1 + om_b_1_1
-#            b01_2 = b_0_2 + om_b_1_2
-#            b01_0 *= om_plus_1_inv
-#            b01_1 *= om_plus_1_inv
-#            b01_2 *= om_plus_1_inv
-#            #a01 = [a01_0, a01_1, a01_2]
-#
-#            #b02 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega)
-#            b02_0 = b_0_0 + 2*om_b_1_0 + b_2_0
-#            b02_1 = b_0_1 + 2*om_b_1_1 + b_2_1
-#            b02_2 = b_0_2 + 2*om_b_1_2 + b_2_2
-#            b02_0 *= _2om_plus_2_inv
-#            b02_1 *= _2om_plus_2_inv
-#            b02_2 *= _2om_plus_2_inv
-#            #a02 = [a02_0, a02_1, a02_2]
-#
-#            #b10 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega) = b02
-#
-#            #b11 = (np.array(b2) +  omega*np.array(b1))/(1 + omega)
-#            b11_0 = b_2_0 + om_b_1_0
-#            b11_1 = b_2_1 + om_b_1_1
-#            b11_2 = b_2_2 + om_b_1_2
-#            b11_0 *= om_plus_1_inv
-#            b11_1 *= om_plus_1_inv
-#            b11_2 *= om_plus_1_inv
-#            #a11 = [a11_0, a11_1, a11_2]
-#
-#            #b12 = b2
-#
-#            b0 = np.array([b_0_0, b_0_1 , b_0_2, b01_0, b01_1, b01_2, b02_0, b02_1, b02_2]).reshape(3,3)
-#            b1 = np.array([b02_0, b02_1, b02_2, b11_0, b11_1, b11_2, b_2_0, b_2_1, b_2_2]).reshape(3,3)       
-#
-#            #append arc pair children to stack [((a002, b002), depth+1) ((a102, b002), depth+1) ...]
-#            stack.append(((a0, b0), depth+1))
-#            stack.append(((a0, b1), depth+1))
-#            stack.append(((a1, b0), depth+1))
-#            stack.append(((a1, b1), depth+1))
-#            
-#    return (0,0)#falls dieses zurueck gegeben wird is irgendwas schief gegangen.
+    while len(stack)>0:
+        
+        ((a,b), depth) = stack.pop()
+        
+        #first compute the line 2 line distance as in cLineToLineDistance_2
+        a_0_0 = a[0,0];
+        a_0_1 = a[0,1];
+        a_0_2 = a[0,2];
+        a_2_0 = a[2,0];
+        a_2_1 = a[2,1];
+        a_2_2 = a[2,2];    
+    
+        # compute edge length and the edge unit vector
+        u_0    = a_2_0 - a_0_0;
+        u_1    = a_2_1 - a_0_1;
+        u_2    = a_2_2 - a_0_2;
+        K      = np.sqrt( u_0 * u_0 + u_1 * u_1 + u_2 * u_2 );
+        K_inv  = 1. / K;
+        u_0   *= K_inv;
+        u_1   *= K_inv;
+        u_2   *= K_inv;
+        K_half = 0.5 * K;
+
+        # edge midpoint
+        M_0    = 0.5 * (a_0_0 + a_2_0);
+        M_1    = 0.5 * (a_0_1 + a_2_1);
+        M_2    = 0.5 * (a_0_2 + a_2_2);
+    
+        b_0_0 = b[0,0];
+        b_0_1 = b[0,1];
+        b_0_2 = b[0,2];
+        b_2_0 = b[2,0];
+        b_2_1 = b[2,1];
+        b_2_2 = b[2,2];  
+
+        # compute edge length and the edge unit vector            
+        v_0    = b_2_0 - b_0_0;
+        v_1    = b_2_1 - b_0_1;
+        v_2    = b_2_2 - b_0_2;
+        L      = np.sqrt( v_0 * v_0 + v_1 * v_1 + v_2 * v_2 );
+        L_inv  = 1. / L;
+        v_0   *= L_inv;
+        v_1   *= L_inv;
+        v_2   *= L_inv;
+        L_half = 0.5 * L;
+
+        # edge midpoint                
+        N_0    = 0.5 * (b_0_0 + b_2_0);
+        N_1    = 0.5 * (b_0_1 + b_2_1);
+        N_2    = 0.5 * (b_0_2 + b_2_2);
+
+        w_0    = N_0 - M_0;
+        w_1    = N_1 - M_1;
+        w_2    = N_2 - M_2;
+
+        # compute several scalar products that will be used frequently
+        uv     = u_0 * v_0 + u_1 * v_1 + u_2 * v_2;
+        uw     = u_0 * w_0 + u_1 * w_1 + u_2 * w_2;
+        vw     = v_0 * w_0 + v_1 * w_1 + v_2 * w_2;
+
+        denom  = (1.0 - uv * uv);
+    
+        if denom < 0.0000000000000001 : #lines are parallel
+            #first calculate the distace between the infinite lines
+            Dinf = m.sqrt( w_0 * w_0 + w_1 * w_1 + w_2 * w_2 - uw * uw )
+
+            #if the projection of the segements overlap then return Dinf, otherwise return the distance between the closest end points
+            if -K_half - uw  > L_half :
+                if uv > 0:
+            
+                    d_0 = a_0_0 - b_2_0;
+                    d_1 = a_0_1 - b_2_1;
+                    d_2 = a_0_2 - b_2_2;   
+            
+                    dl2l = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
+                
+                else:
+                    d_0 = a_0_0 - b_0_0;
+                    d_1 = a_0_1 - b_0_1;
+                    d_2 = a_0_2 - b_0_2;   
+            
+                    dl2l = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
+        
+            elif uw - K_half > L_half:
+                
+                if uv > 0:#lines are oriented
+                    d_0 = a_2_0 - b_0_0;
+                    d_1 = a_2_1 - b_0_1;
+                    d_2 = a_2_2 - b_0_2;   
+            
+                    dl2l = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
+
+                else:
+                    d_0 = a_2_0 - b_2_0;
+                    d_1 = a_2_1 - b_2_1;
+                    d_2 = a_2_2 - b_2_2;   
+            
+                    dl2l = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
+        
+            else:
+                dl2l = Dinf
+        else:
+            #first calculate the distace between the infinite lines
+            factor = 1. / denom;
+            s = (uw - uv * vw) * factor;
+            t = (uv * uw - vw) * factor;
+        
+            d_0 = w_0 - s * u_0 + t * v_0;
+            d_1 = w_1 - s * u_1 + t * v_1;
+            d_2 = w_2 - s * u_2 + t * v_2;        
+        
+            Dinf = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
+    
+            s_0 = -s - K_half;
+            s_1 = -s + K_half;
+            t_0 = -t - L_half;
+            t_1 = -t + L_half;
+        
+            #calculate the distance in the plane projected along the vector connecting the closest two points
+            if ( s_0 * s_1 < 0 ) and ( t_0 * t_1 < 0 ) : #closest point is contained in the line segment
+                 dl2l = Dinf
+            else:#closest point will envolve one of the end points
+            #find the closest edge point to the points realising the minimal distance of the infinite lines
+
+                s_ = s_0 if abs(s_0) <= abs(s_1) else s_1        
+                t_ = s_*uv;
+            
+                if t_0 < t_ < t_1 :
+                
+                    f1 = (s_ * s_) * denom
+                
+                else :
+                
+                    t_ = t_0 if abs(t_0 - t_) <= abs(t_1 - t_) else t_1;                
+                    f1 = s_ * s_ + t_ * t_ - 2.0 * s_ * t_ * uv
+
+                t_ = t_0 if abs(t_0) <= abs(t_1) else t_1;#seems like Henrik has made mistake here, check     
+                s_ = t_ * uv;
+            
+                if s_0 < s_ < s_1 :
+                
+                    f2 = (t_ * t_) * denom;
+                
+                else :
+                
+                    s_ = s_0 if abs(s_0 - s_) <= abs(s_1 - s_) else s_1;                
+                    f2 = s_ * s_ + t_ * t_ - 2.0 * s_ * t_ * uv;
+        
+                dl2l = np.sqrt( Dinf*Dinf + min(f1, f2) )
+    
+        # update errors in the verbose c way by using depth
+        if len(err_a) < depth + 1:#need to update the errors and append them to the list
+            tmp1 = np.sqrt(0.5*(1 + err_a[-1][1]))
+            tmp0 = err_a[-1][0]*(1./(2 + np.sqrt(2*(1 + err_a[-1][1]))))
+            err_a.append((tmp0, tmp1))
+            
+            tmp1 = np.sqrt(0.5*(1 + err_b[-1][1]))
+            tmp0 = err_b[-1][0]*(1./(2 + np.sqrt(2*(1 + err_b[-1][1]))))
+            err_b.append((tmp0, tmp1))
+        
+        error = err_a[depth][0] + err_b[depth][0]
+
+        if dl2l + error < closestDistanceBound:#violates reach constraint
+            return 1
+        elif dl2l - error < closestDistanceBound:#need to process arc pair further
+            if error < epsilon:#violates contraint within accuracy bounds
+                return 1
+        
+            #bisect the arc pair and get four arc pair children
+            a_1_0 = a[1,0];
+            a_1_1 = a[1,1];
+            a_1_2 = a[1,2];
+        
+            omega = err_a[depth][1]  
+
+            #evaluate the new points
+            om_plus_1_inv = 1./(1 + omega)
+            _2om_plus_2_inv = 1./(2 + 2*omega)
+            om_a_1_0 = omega*a_1_0
+            om_a_1_1 = omega*a_1_1
+            om_a_1_2 = omega*a_1_2
+
+            #b00 = b0
+
+            #b01 = (np.array(b0) +  omega*np.array(b1))/(1 + omega)
+            a01_0 = a_0_0 + om_a_1_0
+            a01_1 = a_0_1 + om_a_1_1
+            a01_2 = a_0_2 + om_a_1_2
+            a01_0 *= om_plus_1_inv
+            a01_1 *= om_plus_1_inv
+            a01_2 *= om_plus_1_inv
+            #a01 = [a01_0, a01_1, a01_2]
+
+            #b02 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega)
+            a02_0 = a_0_0 + 2*om_a_1_0 + a_2_0
+            a02_1 = a_0_1 + 2*om_a_1_1 + a_2_1
+            a02_2 = a_0_2 + 2*om_a_1_2 + a_2_2
+            a02_0 *= _2om_plus_2_inv
+            a02_1 *= _2om_plus_2_inv
+            a02_2 *= _2om_plus_2_inv
+            #a02 = [a02_0, a02_1, a02_2]
+
+            #b10 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega) = b02
+
+            #b11 = (np.array(b2) +  omega*np.array(b1))/(1 + omega)
+            a11_0 = a_2_0 + om_a_1_0
+            a11_1 = a_2_1 + om_a_1_1
+            a11_2 = a_2_2 + om_a_1_2
+            a11_0 *= om_plus_1_inv
+            a11_1 *= om_plus_1_inv
+            a11_2 *= om_plus_1_inv
+            #a11 = [a11_0, a11_1, a11_2]
+
+            #b12 = b2
+
+            a0 = np.array([a_0_0, a_0_1 , a_0_2, a01_0, a01_1, a01_2, a02_0, a02_1, a02_2]).reshape(3,3)
+            a1 = np.array([a02_0, a02_1, a02_2, a11_0, a11_1, a11_2, a_2_0, a_2_1, a_2_2]).reshape(3,3)
+
+
+            b_1_0 = b[1,0];
+            b_1_1 = b[1,1];
+            b_1_2 = b[1,2];
+
+            omega = err_b[depth][1]  
+
+            #evaluate the new points
+            om_plus_1_inv = 1./(1 + omega)
+            _2om_plus_2_inv = 1./(2 + 2*omega)
+            om_b_1_0 = omega*b_1_0
+            om_b_1_1 = omega*b_1_1
+            om_b_1_2 = omega*b_1_2
+
+            #b00 = b0
+
+            #b01 = (np.array(b0) +  omega*np.array(b1))/(1 + omega)
+            b01_0 = b_0_0 + om_b_1_0
+            b01_1 = b_0_1 + om_b_1_1
+            b01_2 = b_0_2 + om_b_1_2
+            b01_0 *= om_plus_1_inv
+            b01_1 *= om_plus_1_inv
+            b01_2 *= om_plus_1_inv
+            #a01 = [a01_0, a01_1, a01_2]
+
+            #b02 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega)
+            b02_0 = b_0_0 + 2*om_b_1_0 + b_2_0
+            b02_1 = b_0_1 + 2*om_b_1_1 + b_2_1
+            b02_2 = b_0_2 + 2*om_b_1_2 + b_2_2
+            b02_0 *= _2om_plus_2_inv
+            b02_1 *= _2om_plus_2_inv
+            b02_2 *= _2om_plus_2_inv
+            #a02 = [a02_0, a02_1, a02_2]
+
+            #b10 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega) = b02
+
+            #b11 = (np.array(b2) +  omega*np.array(b1))/(1 + omega)
+            b11_0 = b_2_0 + om_b_1_0
+            b11_1 = b_2_1 + om_b_1_1
+            b11_2 = b_2_2 + om_b_1_2
+            b11_0 *= om_plus_1_inv
+            b11_1 *= om_plus_1_inv
+            b11_2 *= om_plus_1_inv
+            #a11 = [a11_0, a11_1, a11_2]
+
+            #b12 = b2
+
+            b0 = np.array([b_0_0, b_0_1 , b_0_2, b01_0, b01_1, b01_2, b02_0, b02_1, b02_2]).reshape(3,3)
+            b1 = np.array([b02_0, b02_1, b02_2, b11_0, b11_1, b11_2, b_2_0, b_2_1, b_2_2]).reshape(3,3)       
+
+            #append arc pair children to stack [((a002, b002), depth+1) ((a102, b002), depth+1) ...]
+            stack.append(((a0, b0), depth+1))
+            stack.append(((a0, b1), depth+1))
+            stack.append(((a1, b0), depth+1))
+            stack.append(((a1, b1), depth+1))
+    return 0
+
+@njit
+def cReturnDistArcToArcBounds(a, b, epsilon):
+    
+    """
+    a 3 x 3 array
+    b 3 x 3 numpy array
+    """
+    #compute errors in the verbose c way
+    a_0_0 = a[0,0];
+    a_0_1 = a[0,1];
+    a_0_2 = a[0,2];
+    a_1_0 = a[1,0];
+    a_1_1 = a[1,1];
+    a_1_2 = a[1,2];
+    a_2_0 = a[2,0];
+    a_2_1 = a[2,1];
+    a_2_2 = a[2,2];
+    
+    t0_0 = a_1_0 - a_0_0
+    t0_1 = a_1_1 - a_0_1
+    t0_2 = a_1_2 - a_0_2
+    t0_len = np.sqrt(t0_0*t0_0 + t0_1*t0_1 + t0_2*t0_2)
+    t0_len_inv = 1./t0_len
+    t0_0*=t0_len_inv
+    t0_1*=t0_len_inv
+    t0_2*=t0_len_inv
+    
+    t1_0 = a_2_0 - a_1_0
+    t1_1 = a_2_1 - a_1_1
+    t1_2 = a_2_2 - a_1_2
+    t1_len = np.sqrt(t1_0*t1_0 + t1_1*t1_1 + t1_2*t1_2)
+    t1_len_inv = 1./t0_len
+    t1_0*=t1_len_inv
+    t1_1*=t1_len_inv
+    t1_2*=t1_len_inv
+    
+    t0Dott1 = t0_0*t1_0 + t0_1*t1_1 +t0_2*t1_2
+    om_a = np.sqrt(min(0.5*(1 + t0Dott1), 0.99999598))
+    eps_a = om_a*np.sqrt(((1 - om_a)/(1 + om_a))*((a_0_0 - a_2_0)*(a_0_0 - a_2_0) + (a_0_1 - a_2_1)*(a_0_1 - a_2_1) + (a_0_2 - a_2_2)*(a_0_2 - a_2_2)))
+    
+    b_0_0 = b[0,0];
+    b_0_1 = b[0,1];
+    b_0_2 = b[0,2];
+    b_1_0 = b[1,0];
+    b_1_1 = b[1,1];
+    b_1_2 = b[1,2];
+    b_2_0 = b[2,0];
+    b_2_1 = b[2,1];
+    b_2_2 = b[2,2];
+    
+    t0_0 = b_1_0 - b_0_0
+    t0_1 = b_1_1 - b_0_1
+    t0_2 = b_1_2 - b_0_2
+    t0_len = np.sqrt(t0_0*t0_0 + t0_1*t0_1 + t0_2*t0_2)
+    t0_len_inv = 1./t0_len
+    t0_0*=t0_len_inv
+    t0_1*=t0_len_inv
+    t0_2*=t0_len_inv
+    
+    t1_0 = b_2_0 - b_1_0
+    t1_1 = b_2_1 - b_1_1
+    t1_2 = b_2_2 - b_1_2
+    t1_len = np.sqrt(t1_0*t1_0 + t1_1*t1_1 + t1_2*t1_2)
+    t1_len_inv = 1./t0_len
+    t1_0*=t1_len_inv
+    t1_1*=t1_len_inv
+    t1_2*=t1_len_inv
+    
+    t0Dott1 = t0_0*t1_0 + t0_1*t1_1 +t0_2*t1_2
+    om_b = np.sqrt(min(0.5*(1 + t0Dott1), 0.99999598))
+    eps_b = om_b*np.sqrt(((1 - om_b)/(1 + om_b))*((b_0_0 - b_2_0)*(b_0_0 - b_2_0) + (b_0_1 - b_2_1)*(b_0_1 - b_2_1) + (b_0_2 - b_2_2)*(b_0_2 - b_2_2)))
+    
+    #now the depth info
+    stack=[((a, b), 0)] #inialised the stack
+    err_a = [(eps_a, om_a)]
+    err_b = [(eps_b, om_b)]
+
+    upper_bound = 100.0
+    while len(stack)>0:
+        
+        ((a,b), depth) = stack.pop()
+        lower_bound = 0.0 # the lower_bound is not monotonically increasing with the depth
+        
+        #first compute the line 2 line distance as in cLineToLineDistance_2
+        a_0_0 = a[0,0];
+        a_0_1 = a[0,1];
+        a_0_2 = a[0,2];
+        a_2_0 = a[2,0];
+        a_2_1 = a[2,1];
+        a_2_2 = a[2,2];    
+    
+        # compute edge length and the edge unit vector
+        u_0    = a_2_0 - a_0_0;
+        u_1    = a_2_1 - a_0_1;
+        u_2    = a_2_2 - a_0_2;
+        K      = np.sqrt( u_0 * u_0 + u_1 * u_1 + u_2 * u_2 );
+        K_inv  = 1. / K;
+        u_0   *= K_inv;
+        u_1   *= K_inv;
+        u_2   *= K_inv;
+        K_half = 0.5 * K;
+
+        # edge midpoint
+        M_0    = 0.5 * (a_0_0 + a_2_0);
+        M_1    = 0.5 * (a_0_1 + a_2_1);
+        M_2    = 0.5 * (a_0_2 + a_2_2);
+    
+        b_0_0 = b[0,0];
+        b_0_1 = b[0,1];
+        b_0_2 = b[0,2];
+        b_2_0 = b[2,0];
+        b_2_1 = b[2,1];
+        b_2_2 = b[2,2];  
+
+        # compute edge length and the edge unit vector            
+        v_0    = b_2_0 - b_0_0;
+        v_1    = b_2_1 - b_0_1;
+        v_2    = b_2_2 - b_0_2;
+        L      = np.sqrt( v_0 * v_0 + v_1 * v_1 + v_2 * v_2 );
+        L_inv  = 1. / L;
+        v_0   *= L_inv;
+        v_1   *= L_inv;
+        v_2   *= L_inv;
+        L_half = 0.5 * L;
+
+        # edge midpoint                
+        N_0    = 0.5 * (b_0_0 + b_2_0);
+        N_1    = 0.5 * (b_0_1 + b_2_1);
+        N_2    = 0.5 * (b_0_2 + b_2_2);
+
+        w_0    = N_0 - M_0;
+        w_1    = N_1 - M_1;
+        w_2    = N_2 - M_2;
+
+        # compute several scalar products that will be used frequently
+        uv     = u_0 * v_0 + u_1 * v_1 + u_2 * v_2;
+        uw     = u_0 * w_0 + u_1 * w_1 + u_2 * w_2;
+        vw     = v_0 * w_0 + v_1 * w_1 + v_2 * w_2;
+
+        denom  = (1.0 - uv * uv);
+    
+        if denom < 0.0000000000000001 : #lines are parallel
+            #first calculate the distace between the infinite lines
+            Dinf = m.sqrt( w_0 * w_0 + w_1 * w_1 + w_2 * w_2 - uw * uw )
+            
+            #if the projection of the segements overlap then return Dinf, otherwise return the distance between the closest end points
+            if -K_half - uw  > L_half :
+                if uv > 0:
+            
+                    d_0 = a_0_0 - b_2_0;
+                    d_1 = a_0_1 - b_2_1;
+                    d_2 = a_0_2 - b_2_2;   
+            
+                    dl2l = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
+                
+                else:
+                    d_0 = a_0_0 - b_0_0;
+                    d_1 = a_0_1 - b_0_1;
+                    d_2 = a_0_2 - b_0_2;   
+            
+                    dl2l = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
+        
+            elif uw - K_half > L_half:
+                
+                if uv > 0:#lines are oriented
+                    d_0 = a_2_0 - b_0_0;
+                    d_1 = a_2_1 - b_0_1;
+                    d_2 = a_2_2 - b_0_2;   
+            
+                    dl2l = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
+
+                else:
+                    d_0 = a_2_0 - b_2_0;
+                    d_1 = a_2_1 - b_2_1;
+                    d_2 = a_2_2 - b_2_2;   
+            
+                    dl2l = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
+        
+            else:
+                dl2l = Dinf
+        else:
+            #first calculate the distace between the infinite lines
+            factor = 1. / denom;
+            s = (uw - uv * vw) * factor;
+            t = (uv * uw - vw) * factor;
+        
+            d_0 = w_0 - s * u_0 + t * v_0;
+            d_1 = w_1 - s * u_1 + t * v_1;
+            d_2 = w_2 - s * u_2 + t * v_2;        
+        
+            Dinf = np.sqrt( d_0 * d_0 + d_1 * d_1 + d_2 * d_2 );
+    
+            s_0 = -s - K_half;
+            s_1 = -s + K_half;
+            t_0 = -t - L_half;
+            t_1 = -t + L_half;
+        
+            #calculate the distance in the plane projected along the vector connecting the closest two points
+            if ( s_0 * s_1 < 0 ) and ( t_0 * t_1 < 0 ) : #closest point is contained in the line segment
+                dl2l = Dinf
+            else:#closest point will envolve one of the end points
+                #find the closest edge point to the points realising the minimal distance of the infinite lines
+
+                s_ = s_0 if abs(s_0) <= abs(s_1) else s_1        
+                t_ = s_*uv;
+            
+                if t_0 < t_ < t_1 :
+                
+                    f1 = (s_ * s_) * denom
+                
+                else :
+                
+                    t_ = t_0 if abs(t_0 - t_) <= abs(t_1 - t_) else t_1;                
+                    f1 = s_ * s_ + t_ * t_ - 2.0 * s_ * t_ * uv
+
+                t_ = t_0 if abs(t_0) <= abs(t_1) else t_1;            
+                s_ = t_ * uv;
+            
+                if s_0 < s_ < s_1 :
+                
+                    f2 = (t_ * t_) * denom;
+                
+                else :
+                
+                    s_ = s_0 if abs(s_0 - s_) <= abs(s_1 - s_) else s_1;                
+                    f2 = s_ * s_ + t_ * t_ - 2.0 * s_ * t_ * uv;
+        
+                dl2l = np.sqrt( Dinf*Dinf + min(f1, f2) )
+           
+        # update errors in the verbose c way by using depth
+        if len(err_a) < depth + 1:#need to update the errors and append them to the list
+            tmp1 = np.sqrt(0.5*(1 + err_a[-1][1]))
+            tmp0 = err_a[-1][0]*(1./(2 + np.sqrt(2*(1 + err_a[-1][1]))))
+            err_a.append((tmp0, tmp1))
+            
+            tmp1 = np.sqrt(0.5*(1 + err_b[-1][1]))
+            tmp0 = err_b[-1][0]*(1./(2 + np.sqrt(2*(1 + err_b[-1][1]))))
+            err_b.append((tmp0, tmp1))
+        
+        error = err_a[depth][0] + err_b[depth][0]
+        
+        #print(depth, dl2l, dl2l - error, dl2l + error)
+        if dl2l - error < upper_bound:#arc sub pair to further process
+            if upper_bound > dl2l + error:
+                upper_bound = dl2l + error
+                #print(depth, (lower_bound, upper_bound), "least upper bound")
+            if lower_bound < dl2l -error:#take the greatest lower bound of those lower bounds less than the upper bound
+                lower_bound = dl2l - error
+                #print(depth, (lower_bound, upper_bound), "greatest lower bound")
+            if error < epsilon:#evaluate within accuracy bounds
+                #print("depth = ", depth, "error", err_a[depth], err_b[depth])
+                return (lower_bound, upper_bound)
+            
+            #bisect the arc pair and get four arc pair children
+            a_1_0 = a[1,0];
+            a_1_1 = a[1,1];
+            a_1_2 = a[1,2];
+        
+            omega = err_a[depth][1]  
+
+            #evaluate the new points
+            om_plus_1_inv = 1./(1 + omega)
+            _2om_plus_2_inv = 1./(2 + 2*omega)
+            om_a_1_0 = omega*a_1_0
+            om_a_1_1 = omega*a_1_1
+            om_a_1_2 = omega*a_1_2
+
+            #b00 = b0
+
+            #b01 = (np.array(b0) +  omega*np.array(b1))/(1 + omega)
+            a01_0 = a_0_0 + om_a_1_0
+            a01_1 = a_0_1 + om_a_1_1
+            a01_2 = a_0_2 + om_a_1_2
+            a01_0 *= om_plus_1_inv
+            a01_1 *= om_plus_1_inv
+            a01_2 *= om_plus_1_inv
+            #a01 = [a01_0, a01_1, a01_2]
+
+            #b02 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega)
+            a02_0 = a_0_0 + 2*om_a_1_0 + a_2_0
+            a02_1 = a_0_1 + 2*om_a_1_1 + a_2_1
+            a02_2 = a_0_2 + 2*om_a_1_2 + a_2_2
+            a02_0 *= _2om_plus_2_inv
+            a02_1 *= _2om_plus_2_inv
+            a02_2 *= _2om_plus_2_inv
+            #a02 = [a02_0, a02_1, a02_2]
+
+            #b10 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega) = b02
+
+            #b11 = (np.array(b2) +  omega*np.array(b1))/(1 + omega)
+            a11_0 = a_2_0 + om_a_1_0
+            a11_1 = a_2_1 + om_a_1_1
+            a11_2 = a_2_2 + om_a_1_2
+            a11_0 *= om_plus_1_inv
+            a11_1 *= om_plus_1_inv
+            a11_2 *= om_plus_1_inv
+            #a11 = [a11_0, a11_1, a11_2]
+
+            #b12 = b2
+
+            a0 = np.array([a_0_0, a_0_1 , a_0_2, a01_0, a01_1, a01_2, a02_0, a02_1, a02_2]).reshape(3,3)
+            a1 = np.array([a02_0, a02_1, a02_2, a11_0, a11_1, a11_2, a_2_0, a_2_1, a_2_2]).reshape(3,3)
+
+
+            b_1_0 = b[1,0];
+            b_1_1 = b[1,1];
+            b_1_2 = b[1,2];
+
+            omega = err_b[depth][1]  
+
+            #evaluate the new points
+            om_plus_1_inv = 1./(1 + omega)
+            _2om_plus_2_inv = 1./(2 + 2*omega)
+            om_b_1_0 = omega*b_1_0
+            om_b_1_1 = omega*b_1_1
+            om_b_1_2 = omega*b_1_2
+
+            #b00 = b0
+
+            #b01 = (np.array(b0) +  omega*np.array(b1))/(1 + omega)
+            b01_0 = b_0_0 + om_b_1_0
+            b01_1 = b_0_1 + om_b_1_1
+            b01_2 = b_0_2 + om_b_1_2
+            b01_0 *= om_plus_1_inv
+            b01_1 *= om_plus_1_inv
+            b01_2 *= om_plus_1_inv
+            #a01 = [a01_0, a01_1, a01_2]
+
+            #b02 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega)
+            b02_0 = b_0_0 + 2*om_b_1_0 + b_2_0
+            b02_1 = b_0_1 + 2*om_b_1_1 + b_2_1
+            b02_2 = b_0_2 + 2*om_b_1_2 + b_2_2
+            b02_0 *= _2om_plus_2_inv
+            b02_1 *= _2om_plus_2_inv
+            b02_2 *= _2om_plus_2_inv
+            #a02 = [a02_0, a02_1, a02_2]
+
+            #b10 = (np.array(b0) + 2*omega*np.array(b1) + np.array(b2))/(2 + 2*omega) = b02
+
+            #b11 = (np.array(b2) +  omega*np.array(b1))/(1 + omega)
+            b11_0 = b_2_0 + om_b_1_0
+            b11_1 = b_2_1 + om_b_1_1
+            b11_2 = b_2_2 + om_b_1_2
+            b11_0 *= om_plus_1_inv
+            b11_1 *= om_plus_1_inv
+            b11_2 *= om_plus_1_inv
+            #a11 = [a11_0, a11_1, a11_2]
+
+            #b12 = b2
+
+            b0 = np.array([b_0_0, b_0_1 , b_0_2, b01_0, b01_1, b01_2, b02_0, b02_1, b02_2]).reshape(3,3)
+            b1 = np.array([b02_0, b02_1, b02_2, b11_0, b11_1, b11_2, b_2_0, b_2_1, b_2_2]).reshape(3,3)       
+
+            #append arc pair children to stack [((a002, b002), depth+1) ((a102, b002), depth+1) ...]
+            stack.append(((a0, b0), depth+1))
+            stack.append(((a0, b1), depth+1))
+            stack.append(((a1, b0), depth+1))
+            stack.append(((a1, b1), depth+1))
+            
+    return (0,0)#falls dieses zurueck gegeben wird is irgendwas schief gegangen.
                 
 def returnPointTangentDataForBezierTriangle(b):
     """

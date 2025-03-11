@@ -1,0 +1,17 @@
+.backup/
+*.out
+*.py~
+*.py.un~
+*.py.un
+*.pyc
+*/__pycache__
+.ipynb_checkpoints/
+*.swp
+*.txt
+*.poly
+/data/
+inputFiles/
+*.job
+polyFiles/
+test/
+libmorphometry.so
