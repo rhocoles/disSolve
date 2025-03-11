@@ -282,7 +282,6 @@ class TubularGeometry:
         self.V_0, self.A_0, self.C_0, self.X_0 = returnEmbeddedMeasures(self.curve_object.curve_vertices, self.input_R, endCaps=endCaps)
         return None
         
-    #TODO test the energy computation  method with a torus in. 
     def evaluate_measures(self):
         """Function computes the measures of the curveData point list with balls of radius input_R """
     
@@ -385,12 +384,16 @@ class Biarcs:
 
     # here you can put class variables shared by all instances
     
-    def __init__(self,  fileName='', sphereDensity=3, edgeLength=0):
+    def __init__(self,  fileName='', curveData = [], sphereDensity=3, edgeLength=0):
 
         self.geometryType = "Biarcs"
 
         if fileName=='':
-            self.data = []
+            if len(curveData)==0:
+                print("You need to initialise the shape of the curve either from a .txt file or from a biarcs.biarcDataName")
+                self.data = []
+            else:
+                self.data = curveData
         else:
             f = open(str(fileName), 'r')
             readList = f.read().split('\n')
@@ -413,6 +416,8 @@ class Biarcs:
                     self.data.append(strand)
 
         self.configType = "closed" # if (openOrClosed) else "closed" # open biarc curve is not implemented
+        
+        print(sphereDensity)
 
         self.numberOfCurveVerticesPerStrand = [sphereDensity*len(self.data[i]) for i in range(len(self.data))]
         

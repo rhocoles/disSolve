@@ -17,6 +17,7 @@ import socket
 import geometryClass as geoClass
 
 #import pointFilaments
+import biarcs
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank() #number of this parallel process
@@ -159,21 +160,24 @@ print(dMin, dMax)
 #decrease = lambda x: x - float(sys.argv[5])
 #updateT0 = lambda x, y: -max(x, 0.005)/np.log(y)
 #varyT = int(sys.argv[8])
-varyT = 0
+#varyT = 0
 #numberRoundsVaryT=int(sys.argv[9])
 #numberSecondsBetweenUpdatingTempByVaryT=int(sys.argv[10])
 
 #define the geometry
 #geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(1, fileName=pathToInitialConfig, edgeLength=0.25))
-geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(fileName=pathToInitialConfig, sphereDensity=5))
-geometry.curve_object.rescale_geometry(40/39.68504)
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(fileName=pathToInitialConfig, sphereDensity=5))
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.circle36Biarc_124arcs, sphereDensity=4))
+geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.trefoil_test, sphereDensity=4))
+#geometry.curve_object.rescale_geometry(40/39.68504)
 geometry.curve_object.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
-geoClass.makePointCloudPoly([pt for subList in geometry.curve_object.curve_vertices for pt in subList], fileLocation,'trefoil40_'+str(frameNumber))
-geoClass.makeFilFile([pt for subList in geometry.curve_object.curve_vertices for pt in subList], 'trefoil40_'+str(frameNumber), geometry.input_R)
+geoClass.makePointCloudPoly([pt for subList in geometry.curve_object.curve_vertices for pt in subList], fileLocation,'test_'+str(frameNumber))
+#geoClass.makeFilFile([pt for subList in geometry.curve_object.curve_vertices for pt in subList], 'trefoil40_'+str(frameNumber), geometry.input_R)
 geometry.evaluate_embedded_measures()
 geometry.evaluate_measures()
 
 if rank ==0:
+    print(len(geometry.curve_object.data[0]))
     print("strand lengths ", list(map(lambda x: round(x, 5), geometry.curve_object.evaluate_curve_length(geometry.curve_object.data))))
     print("edge length is fixed to ", geometry.curve_object.edgeLength)
     print("computing with ball radius ", geometry.input_R)
@@ -219,7 +223,7 @@ while rounds < numberOfRounds:
         if (it_no + accept)%500==0:
             geometry.curve_object.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
             geometry.curve_object.save_data(fileLocation, polyFileName+'_'+str(frameNumber))
-            geoClass.makeFilFile([pt for subList in geometry.curve_object.curve_vertices for pt in subList], 'trefoil40_'+str(frameNumber+63), geometry.input_R)
+            #geoClass.makeFilFile([pt for subList in geometry.curve_object.curve_vertices for pt in subList], 'trefoil40_'+str(frameNumber+63), geometry.input_R)
             frameNumber+=1
 
         if it_no%500==0:

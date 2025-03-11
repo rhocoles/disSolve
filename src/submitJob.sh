@@ -13,7 +13,7 @@ numberParallelProcesses=1
 #annealing parameters for the decreasing temp part
 numberSecondsPerTemp=2400
 numberOfRounds=5
-T_0=8.0
+T_0=0.5
 T_step=0.75
 
 #annealing parameters for the variable T part of experiment --- no swopping
@@ -37,6 +37,7 @@ cp ${dir_origin}/geometryClass.py .
 cp ${dir_origin}/simple_functions.py .
 cp ${dir_origin}/morphometry.py .
 cp ${dir_origin}/libmorphometry.so .
+cp ${dir_origin}/biarcs.py .
 
 #cp ${dir_origin}/pointFilaments.py .
 
@@ -50,7 +51,7 @@ mkdir data
 
 #screen -S ${structure:0:3}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3} -L -d -m mpirun -np $numberParallelProcesses ~/miniconda3/bin/python3 main.py $structure $T_0 $overlapRatio $ropelength $eta $inputFile $T_step $numberSecondsPerTemp $totalNumberOfRounds $varyT $numberRoundsVaryT $numberSecondsBetweenUpdatingTempByVaryT
 #screen -S ${structure:0:3}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3} -L -d -m mpirun -np $numberParallelProcesses python3 main.py $structure $T_0 $overlapRatio $eta $T_step $numberSecondsPerTemp $numberOfRounds $varyT $numberRoundsVaryT $numberSecondsBetweenUpdatingTempByVaryT $inputFile
-#python3.9 main.py $inputFile $overlapRatio $eta $T_0 $T_step $numberSecondsPerTemp $numberOfRounds
-mpirun -np 5 python3.9 main.py $inputFile $overlapRatio $eta $T_0 $T_step $numberSecondsPerTemp $numberOfRounds
+python3.9 main.py $inputFile $overlapRatio $eta $T_0 $T_step $numberSecondsPerTemp $numberOfRounds
+#mpirun -np 1 python3.9 main.py $inputFile $overlapRatio $eta $T_0 $T_step $numberSecondsPerTemp $numberOfRounds
 
 #echo "experiment will end in $(((varyT*(numberRoundsVaryT*numberSecondsBetweenUpdatingTempByVaryT + 2) + numberSecondsPerTemp*numberSecondsBetweenUpdatingTempByVaryT)/(60*60*24))) days"
