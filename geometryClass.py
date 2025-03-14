@@ -2,9 +2,10 @@ import math as m
 import numpy as np
 import random
 import decimal as dec
-import sys
-import subprocess
-import os
+#import sys
+#import subprocess
+#import os
+from copy import deepcopy
 
 import simple_functions as simp_func
 import morphometry as mm
@@ -213,6 +214,8 @@ def makeFilFile(pointList,fileName, radius):
 class TubularGeometry:
     """ TubularGeometry object, describes the functionality of a tube given a curve. The curve is defined and mutated via the curve_object """
         
+    uniform_edge_length = None
+
     def __init__(self, overlapRatio, eta, curve_object):
 
         self.curve_object = curve_object
@@ -257,10 +260,12 @@ class TubularGeometry:
         self.R = round(m.sqrt(self.rTube + 0.25*self.curve_object.edgeLength**2), 5)
         self.r_s = round(m.sqrt(self.rTube + 0.25*self.curve_object.edgeLength**2)*self.r_s_star, 5)  
         self.input_R = round(m.sqrt(self.rTube + 0.25*self.curve_object.edgeLength**2)*(1 + self.r_s_star), 5)
+        
         return None
 
+
     def set_coefficients(self):
-        """"Sets the coefficients used to define the specific linear combination of measures defining the energy"""
+        """Sets the coefficients used to define the specific linear combination of measures defining the energy"""
 
         if not hasattr(self, 'r_s'):
             self.set_radii() 
@@ -270,6 +275,24 @@ class TubularGeometry:
         self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
         #print("WARNING still missing a factor 3/4pi or something")
         return None
+
+
+    def set_uniform_tube_and_energy_specs_by_overriding_edgeLength(self, edgeLengthValue):
+        """Sets a uniform  radius throughout all instances of the curve_object by computing the ball radii and coefficients with a fixed edgeLength parameter"""
+
+        self.R = round(m.sqrt(self.rTube + 0.25*edgeLengthValue**2), 5)
+        self.r_s = round(m.sqrt(self.rTube + 0.25*edgeLengthValue**2)*self.r_s_star, 5)  
+        self.input_R = round(m.sqrt(self.rTube + 0.25*edgeLengthValue**2)*(1 + self.r_s_star), 5)
+
+        f1, f2, f3, f4 = self.f1_f2_f3_f4 #f2 is already set as negative
+
+        self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
+        #print("WARNING still missing a factor 3/4pi or something")
+        
+        self.curve_object.edgeLength = edgeLengthValue
+
+        return None
+
 
     def evaluate_embedded_measures(self):
         """ Function computes the embedded measures and saves them as variables of the curve"""
@@ -282,7 +305,6 @@ class TubularGeometry:
         self.V_0, self.A_0, self.C_0, self.X_0 = returnEmbeddedMeasures(self.curve_object.curve_vertices, self.input_R, endCaps=endCaps)
         return None
         
-    #TODO test the energy computation  method with a torus in. 
     def evaluate_measures(self):
         """Function computes the measures of the curveData point list with balls of radius input_R """
     
@@ -347,7 +369,7 @@ class TubularGeometry:
         elif self.curve_object.geometryType == "Biarcs":
             #deltaE = (tmpE - tmpE_0)/tmpL - (E - E_0)/L
 
-            embedded_measures = returnEmbeddedMeasures(neighbouring_curve_vertices, self.input_R)
+            embedded_measures = returnEmbeddedMeasures(neighbouring_curve_vertices, self.input_R, endCaps=False) #biarcs are currently only implemented as closed curves
             length = returnLengthOfPointList(neighbouring_curve_vertices, self.curve_object.configType)
             neighbouring_normalised_energy = (np.dot(np.array(self.coefficients), np.array(measures) - np.array(embedded_measures)))/length
             
@@ -385,12 +407,16 @@ class Biarcs:
 
     # here you can put class variables shared by all instances
     
-    def __init__(self,  fileName='', sphereDensity=3, edgeLength=0):
+    def __init__(self,  fileName='', curveData = [], sphereDensity=3, edgeLength=0):
 
         self.geometryType = "Biarcs"
 
         if fileName=='':
-            self.data = []
+            if len(curveData)==0:
+                print("You need to initialise the shape of the curve either from a .txt file or from a biarcs.biarcDataName")
+                self.data = []
+            else:
+                self.data = curveData
         else:
             f = open(str(fileName), 'r')
             readList = f.read().split('\n')
@@ -413,7 +439,7 @@ class Biarcs:
                     self.data.append(strand)
 
         self.configType = "closed" # if (openOrClosed) else "closed" # open biarc curve is not implemented
-
+        
         self.numberOfCurveVerticesPerStrand = [sphereDensity*len(self.data[i]) for i in range(len(self.data))]
         
         self.curve_vertices = self.evaluate_curve_vertices(self.data)
@@ -654,7 +680,11 @@ class Biarcs:
                
                     #check the overlapping arc condition
                     if self.check_new_positions_do_not_cause_overlaps(self.upper_bound_closest_self_distance, 0.01, newTrianglePositions, indices):
-                        return d, indices, newTrianglePositions
+                        #return d, indices, newTrianglePositions ---> Tidy: #update new positions to generate a neighbouring configuration
+                        tmpGeometryData = deepcopy(self.data)
+                        for (i,j) in indices:
+                            tmpGeometryData[i][j]=newTrianglePositions.pop(0)
+                        return tmpGeometryData
 
                 d_upperBound = 0.15*d_upperBound
 
@@ -1217,7 +1247,12 @@ class ThreadedBeads():
 
                     #check the overlapping arc condition
                     if self.check_new_positions_do_not_cause_overlaps(self.upper_bound_closest_self_distance, newPos, ind):
-                        return d, ind, newPos
+                        #return d, ind, newPos ---> Tidy: #update new positions to generate a neighbouring configuration
+                        tmpGeometryData = deepcopy(self.data)
+                        for (i,j) in ind[1:-1:]:
+                            tmpGeometryData[i][j]=newPos.pop(0)
+                        return tmpGeometryData
+
                 d_upperBound = 0.25*d_upperBound
 
             numberOfTries+=1
