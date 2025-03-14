@@ -159,13 +159,17 @@ acceptRatio = 1.0
 medianProbability = 0.1
 
 #define the geometry
-geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, curveData=pointFilaments.circle36_thBe_dl25, edgeLength=0.25))
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, curveData=pointFilaments.circle36_thBe_dl25, edgeLength=0.25))
+geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, curveData=pointFilaments.trefoil50_thBe_dl4, edgeLength=0.4))
 #geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(fileName=pathToInitialConfig))
+
 #geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.circle36Biarcs_52arcs))
 #geometry.set_uniform_tube_and_energy_specs_by_overriding_edgeLength(0.225)
-#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.trefoil50Biarcs_48arcs, sphereDensity=4))
-#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.hopfLink_4R_50_C, sphereDensity=4))
+
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.trefoil50Biarcs_56arcs, sphereDensity=4))
+#geometry.set_uniform_tube_and_energy_specs_by_overriding_edgeLength(0.226)
 #geometry.curve_object.rescale_geometry(40/39.68504)
+
 geometry.curve_object.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
 geoClass.makePointCloudPoly([pt for subList in geometry.curve_object.curve_vertices for pt in subList], fileLocation,'test_'+str(frameNumber))
 #geoClass.makeFilFile([pt for subList in geometry.curve_object.curve_vertices for pt in subList], 'trefoil40_'+str(frameNumber), geometry.input_R)
@@ -225,7 +229,7 @@ if varyT:
                 frameNumber+=1
 
             if it_no%500==0:
-                print("Info from rank", rank, " (E - E0)/L", geometry.evaluate_normalised_energy(), "T =", T, "acceptRatio", accept/it_no, "(minRads, minSelfDist) = ", geometry.curve_object.check_reach())
+                print("Info from rank", rank, " (E - E0)/L", round(geometry.evaluate_normalised_energy(),3), "T =", round(T,3), "acceptRatio", round(accept/it_no, 3), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), frameNumber)
 
     
             #compute expected prob and deltaE_>0 ---> this could be just a massive waste of computation power since you don't actually use this to pitch the temperature...
