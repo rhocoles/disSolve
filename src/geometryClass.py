@@ -214,6 +214,8 @@ def makeFilFile(pointList,fileName, radius):
 class TubularGeometry:
     """ TubularGeometry object, describes the functionality of a tube given a curve. The curve is defined and mutated via the curve_object """
         
+    uniform_edge_length = None
+
     def __init__(self, overlapRatio, eta, curve_object):
 
         self.curve_object = curve_object
@@ -258,10 +260,12 @@ class TubularGeometry:
         self.R = round(m.sqrt(self.rTube + 0.25*self.curve_object.edgeLength**2), 5)
         self.r_s = round(m.sqrt(self.rTube + 0.25*self.curve_object.edgeLength**2)*self.r_s_star, 5)  
         self.input_R = round(m.sqrt(self.rTube + 0.25*self.curve_object.edgeLength**2)*(1 + self.r_s_star), 5)
+        
         return None
 
+
     def set_coefficients(self):
-        """"Sets the coefficients used to define the specific linear combination of measures defining the energy"""
+        """Sets the coefficients used to define the specific linear combination of measures defining the energy"""
 
         if not hasattr(self, 'r_s'):
             self.set_radii() 
@@ -271,6 +275,24 @@ class TubularGeometry:
         self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
         #print("WARNING still missing a factor 3/4pi or something")
         return None
+
+
+    def set_uniform_tube_and_energy_specs_by_overriding_edgeLength(self, edgeLengthValue):
+        """Sets a uniform  radius throughout all instances of the curve_object by computing the ball radii and coefficients with a fixed edgeLength parameter"""
+
+        self.R = round(m.sqrt(self.rTube + 0.25*edgeLengthValue**2), 5)
+        self.r_s = round(m.sqrt(self.rTube + 0.25*edgeLengthValue**2)*self.r_s_star, 5)  
+        self.input_R = round(m.sqrt(self.rTube + 0.25*edgeLengthValue**2)*(1 + self.r_s_star), 5)
+
+        f1, f2, f3, f4 = self.f1_f2_f3_f4 #f2 is already set as negative
+
+        self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
+        #print("WARNING still missing a factor 3/4pi or something")
+        
+        self.curve_object.edgeLength = edgeLengthValue
+
+        return None
+
 
     def evaluate_embedded_measures(self):
         """ Function computes the embedded measures and saves them as variables of the curve"""
@@ -1218,9 +1240,11 @@ class ThreadedBeads():
                             if simp_func.returnTurningAngleForControlTriangle(newPos[-1], self.data[ind[-1][0]][ind[-1][1]], self.data[ind[-1][0]][indexNextJ(ind[-1])]) > 2*self.deltaStar:
                                 continue
                     else:
-                        if simp_func.returnTurningAngleForControlTriangle(self.data[ind[0][0]][indexPrevJ(ind[0])], self.data[ind[0][0]][ind[0][1]], newPos[0]) > 2*self.deltaStar:
+                        #if simp_func.returnTurningAngleForControlTriangle(self.data[ind[0][0]][indexPrevJ(ind[0])], self.data[ind[0][0]][ind[0][1]], newPos[0]) > 2*self.deltaStar:
+                        if simp_func.returnTurningAngleForControlTriangle(self.data[ind[0][0]][indexPrevJ(ind[0])], self.data[ind[0][0]][ind[0][1]], newPos[0]) > max(2*self.deltaStar, simp_func.returnTurningAngleForControlTriangle(self.data[ind[0][0]][indexPrevJ(ind[0])], self.data[ind[0][0]][ind[0][1]], self.data[ind[0][0]][indexNextJ(ind[0])])):
                             continue
-                        if simp_func.returnTurningAngleForControlTriangle(newPos[-1], self.data[ind[-1][0]][ind[-1][1]], self.data[ind[-1][0]][indexNextJ(ind[-1])]) > 2*self.deltaStar:
+                        #if simp_func.returnTurningAngleForControlTriangle(newPos[-1], self.data[ind[-1][0]][ind[-1][1]], self.data[ind[-1][0]][indexNextJ(ind[-1])]) > 2*self.deltaStar:
+                        if simp_func.returnTurningAngleForControlTriangle(newPos[-1], self.data[ind[-1][0]][ind[-1][1]], self.data[ind[-1][0]][indexNextJ(ind[-1])]) > max(2*self.deltaStar, simp_func.returnTurningAngleForControlTriangle(self.data[ind[-1][0]][indexPrevJ(ind[-1])], self.data[ind[-1][0]][ind[-1][1]], self.data[ind[-1][0]][indexNextJ(ind[-1])])):
                             continue
 
                     #check the overlapping arc condition
