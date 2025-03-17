@@ -44,11 +44,11 @@ cp ${dir_origin}/biarcs.py .
 cp ${dir_origin}/pointFilaments.py .
 
 #may be that you don't want to do this...
-#rm -rf polyFiles
-#mkdir polyFiles
-#rm -rf screenlog.0
-#rm -rf data
-#mkdir data
+rm -rf polyFiles
+mkdir polyFiles
+rm -rf screenlog.0
+rm -rf data
+mkdir data
 
 
 #screen -S ${structure:0:3}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3} -L -d -m mpirun -np $numberParallelProcesses ~/miniconda3/bin/python3 main.py $structure $T_0 $overlapRatio $ropelength $eta $inputFile $T_step $numberSecondsPerTemp $totalNumberOfRounds $varyT $numberRoundsVaryT $numberSecondsBetweenUpdatingTempByVaryT

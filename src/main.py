@@ -100,7 +100,7 @@ def do_move_and_check_energy_and_accept_or_reject(geometry, dMin, dMax, T):
 
     #accept or reject energy if increased
     (tmp_0or1, prob) = acceptOrReject(deltaE, T)#calculate probability of achieving deltaE choose via random number generation
-    tmp_0or1 = 1
+    #tmp_0or1 = 1
     if tmp_0or1==1:
         geometry.update_geometry(tmpGeometryData, tmpCurveVertices, size_measures)
             
@@ -145,15 +145,13 @@ allgather_time = int(sys.argv[5])#number secs computing between systems may be e
 numberOfRounds = int(sys.argv[6])
 dragFactor = 5000 #number of iterations over which expectations are computed.
 dMin = 0.00001*overlapRatio
-dMax = 0.1*(overlapRatio + dMin)
+dMax = (overlapRatio + dMin)
 #print(dMin, dMax)
 
 updateT0 = lambda x, y: -max(x, 0.005)/np.log(y)
 varyT = int(sys.argv[7])
-print(varyT)
 numberRoundsVaryT=int(sys.argv[8])
 numberSecondsBetweenUpdatingTempByVaryT=int(sys.argv[9])
-print(numberRoundsVaryT, numberSecondsBetweenUpdatingTempByVaryT)
 deltaE_increasing_list = []
 deltaE_increasing_expectation = 0.0
 probability_list = []
@@ -164,9 +162,10 @@ medianProbability = 0.1
 #define the geometry
 #geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, curveData=pointFilaments.circle36_thBe_dl25, edgeLength=0.25))
 #geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, curveData=pointFilaments.trefoil50_thBe_dl4, edgeLength=0.4))
-geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, fileName=pathToInitialConfig, edgeLength=0.4))
-print([[tuple(geometry.curve_object.data[i][j]) for j in range(len(geometry.curve_object.data[i]))] for i in range(len(geometry.curve_object.data))])
-quit()
+geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, curveData=pointFilaments.hopfLink40_thBe_dl25, edgeLength=0.25))
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, fileName=pathToInitialConfig, edgeLength=0.4))
+#print([[tuple(geometry.curve_object.data[i][j]) for j in range(len(geometry.curve_object.data[i]))] for i in range(len(geometry.curve_object.data))])
+#quit()
 
 #geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(fileName=pathToInitialConfig))
 
@@ -180,8 +179,10 @@ quit()
 #geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.trefoil50Biarcs_56arcs, sphereDensity=5))
 #geometry.curve_object.rescale_geometry(40/39.68504)
 
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.hopfLink50_56arcs, sphereDensity=3))
+
 geometry.curve_object.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
-geoClass.makePointCloudPoly([pt for subList in geometry.curve_object.curve_vertices for pt in subList], fileLocation,'test_'+str(frameNumber))
+#geoClass.makePointCloudPoly([pt for subList in geometry.curve_object.curve_vertices for pt in subList], fileLocation,'test_'+str(frameNumber))
 #geoClass.makeFilFile([pt for subList in geometry.curve_object.curve_vertices for pt in subList], 'trefoil40_'+str(frameNumber), geometry.input_R)
 geometry.evaluate_embedded_measures()
 geometry.evaluate_measures()
@@ -194,7 +195,7 @@ if rank ==0:
     print("computing with ball radius ", geometry.input_R)
     print(geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0)
     print(geometry.V, geometry.A, geometry.C, geometry.X)
-    print("Initialised curve", rank, "of length", geometry.curve_object.length, "(E - E0)/L = ", geometry.evaluate_normalised_energy(), "(minRads, minSelfDist) = ", geometry.curve_object.check_reach())
+    print("Initialised curve", rank, "of length", round(geometry.evaluate_normalised_energy(),3), "(E - E0)/L = ", geometry.evaluate_normalised_energy(), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())))
 
 #set up the data to be communicated between processes
 allgather_data={}
@@ -232,13 +233,13 @@ if varyT:
                 writeData([it_no, T, prob, deltaE, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.curve_object.length, geometry.evaluate_normalised_energy(), frameNumber,  accept/it_no, time.time(), rank, probability_expectation, deltaE_increasing_expectation], fileName+'varyT')
 
             #print out poly file
-            if (it_no + accept)%50==0:
+            if (it_no + accept)%500==0:
                 geometry.curve_object.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
                 geometry.curve_object.save_data(fileLocation, polyFileName+'_'+str(frameNumber))
                 #geoClass.makeFilFile([pt for subList in geometry.curve_object.curve_vertices for pt in subList], 'trefoil40_'+str(frameNumber+63), geometry.input_R)
                 frameNumber+=1
 
-            if it_no%50==0:
+            if it_no%500==0:
                 print("Info from rank", rank, " (E - E0)/L", round(geometry.evaluate_normalised_energy(),3), "T =", round(T,3), "acceptRatio", round(accept/it_no, 3), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), frameNumber)
 
     

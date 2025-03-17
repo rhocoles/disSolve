@@ -915,13 +915,17 @@ class ThreadedBeads():
 
         self.configType = "open" if (openOrClosed) else "closed" #options are closed or open
 
+        self.curve_vertices = self.evaluate_curve_vertices(self.data) 
+
         self.length = sum(self.compute_length())
-        #returnLengthOfPointList(self.curve_vertices, self.configType)
+        print(returnLengthOfPointList(self.curve_vertices, self.configType))
 
         if edgeLength > 0:
             self.edgeLength = edgeLength
         else:
             self.edgeLength = self.compute_average_edge_length()
+
+        print(self.compute_average_edge_length())
 
         rTube = 1.0
 
@@ -937,7 +941,6 @@ class ThreadedBeads():
 
         self.index_intervals_to_be_rotated = self.generate_index_intervals_to_be_rotated(nMax)
 
-        self.curve_vertices = self.evaluate_curve_vertices(self.data) 
 
 
     def compute_average_edge_length(self):
