@@ -5,24 +5,20 @@ geometryType="ThreadedBeads"
 
 structure='test'
 
-inputFile='/Users/harmon/programming/disSolve/program/current/disSolve/src/test_0__2801.txt' # ---> each parallel process gets the same initial configuration
-#inputFile='/Users/harmon/programming/disSolve/program/current/disSolve/src/openChain_dl0_25_50.txt' # ---> each parallel process gets the same initial configuration
+inputFile='/Users/harmon/programming/disSolve/program/current/disSolve/src/test_1.txt'    # ---> each parallel process gets the same initial configuration
 
-overlapRatio=0.12
-eta=0.1
+overlapRatio=0.08
+eta=0.05
 
-numberParallelProcesses=1
+numberParallelProcesses=10
 
-#annealing parameters for the decreasing temp part
-numberSecondsPerTemp=2400
-numberOfRounds=0
-T_0=0.5
-T_step=0.75
+#temperature range
+T_top=1.0
+T_bot=0.1
 
-#annealing parameters for the variable T part of experiment --- no swopping
-varyT=1 #0 means this doesn't happen, 1 means this does happen.
-numberRoundsVaryT=1 #this brings the temp up to prob(med(deltaE>0)) = 0.6, I wouldn't increase this, instead increase the time between temp updates 
-numberSecondsBetweenUpdatingTempByVaryT=2400 #updates temp every 40 mins of iterations 
+#annealing parameters
+time_to_swop=3600
+total_number_rounds=12
 
 # check current director
 dir_origin=${PWD}
@@ -35,7 +31,7 @@ mkdir -p $dir
 cd $dir
 
 #echo "an experiment with ${structure}"
-cp ${dir_origin}/main.py .
+cp ${dir_origin}/main_parallelTempering.py .
 cp ${dir_origin}/geometryClass.py .
 cp ${dir_origin}/simple_functions.py .
 cp ${dir_origin}/morphometry.py .
@@ -51,9 +47,5 @@ rm -rf data
 mkdir data
 
 
-#screen -S ${structure:0:3}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3} -L -d -m mpirun -np $numberParallelProcesses ~/miniconda3/bin/python3 main.py $structure $T_0 $overlapRatio $ropelength $eta $inputFile $T_step $numberSecondsPerTemp $totalNumberOfRounds $varyT $numberRoundsVaryT $numberSecondsBetweenUpdatingTempByVaryT
 #screen -S ${structure:0:3}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3} -L -d -m mpirun -np $numberParallelProcesses python3 main.py $structure $T_0 $overlapRatio $eta $T_step $numberSecondsPerTemp $numberOfRounds $varyT $numberRoundsVaryT $numberSecondsBetweenUpdatingTempByVaryT $inputFile
-python3.9 main.py $overlapRatio $eta $T_0 $T_step $numberSecondsPerTemp $numberOfRounds $varyT $numberRoundsVaryT $numberSecondsBetweenUpdatingTempByVaryT $structure $inputFile
-#mpirun -np 1 python3.9 main.py $inputFile $overlapRatio $eta $T_0 $T_step $numberSecondsPerTemp $numberOfRounds $inputFile
-
-#echo "experiment will end in $(((varyT*(numberRoundsVaryT*numberSecondsBetweenUpdatingTempByVaryT + 2) + numberSecondsPerTemp*numberSecondsBetweenUpdatingTempByVaryT)/(60*60*24))) days"
+mpirun -np $numberParallelProcesses python3.9 main_parallelTempering.py $overlapRatio $eta $T_top $T_bot $time_to_swop $total_number_rounds $inputFile

@@ -106,25 +106,6 @@ def do_move_and_check_energy_and_accept_or_reject(geometry, dMin, dMax, T):
             
     return (tmp_0or1, prob, deltaE)
 
-def measureTime():
-    """Returns the current date and time up to the nearest second"""
-
-    time = str(datetime.now()).split(' ')
-    #print time[0], time[1]
-    date = time[0].split('-')
-    time = time[1].split(':')
-    return (int(date[1]), int(date[2]), int(time[0]), int(time[1]),int(float(time[2])))
-
-def measureTimeDifference(startTime, endTime):
-    """Returns the difference in time of startTime and endTime in seconds."""
-
-    if startTime[0]!=endTime[0]:
-        print("these have started at different months, you need to extend the method to deal with this")
-    else:
-        #return (endTime[1] - startTime[1])*(24 -  startTime[2])*60*60 - startTime[3]*60 - startTime[4] + endTime[2]*60*60 + endTime[3]*60 + endTime[4]
-        return (endTime[1] - startTime[1])*24*60*60 + (endTime[2]- startTime[2])*60*60 + (endTime[4]- startTime[4]) + (endTime[3] - startTime[3])*60
-    return 0
-
 if rank==0:
     print(sys.argv, len(sys.argv))
 fileLocation = './polyFiles/' #need to move one down from the current directory directoryName
@@ -141,6 +122,78 @@ eta = float(sys.argv[2])
 #annealing schedule variables
 T = float(sys.argv[3])
 decrease = lambda x: x*float(sys.argv[4])
+allgather_time = int(sys.argv[5])#number secs computing between systems may be exchanged
+numberOfRounds = int(sys.argv[6])
+dragFactor = 5000 #number of iterations over which expectations are computed.
+dMin = 0.00001*overlapRatio
+dMax = (overlapRatio + dMin)
+#print(dMin, dMax)
+
+updateT0 = lambda x, y: -max(x, 0.005)/np.log(y)
+varyT = int(sys.argv[7])
+numberRoundsVaryT=int(sys.argv[8])
+numberSecondsBetweenUpdatingTempByVaryT=int(sys.argv[9])
+deltaE_increasing_list = []
+deltaE_increasing_expectation = 0.0
+probability_list = []
+probability_expectation = 1.0
+acceptRatio = 1.0
+medianProbability = 0.1
+
+#define the geometry
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, curveData=pointFilaments.circle36_thBe_dl25, edgeLength=0.25))
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, curveData=pointFilaments.trefoil50_thBe_dl4, edgeLength=0.4))
+geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, curveData=pointFilaments.hopfLink40_thBe_dl25, edgeLength=0.25))
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, fileName=pathToInitialConfig, edgeLength=0.4))
+#print([[tuple(geometry.curve_object.data[i][j]) for j in range(len(geometry.curve_object.data[i]))] for i in range(len(geometry.curve_object.data))])
+#quit()
+
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(fileName=pathToInitialConfig))
+
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.circle36Biarcs_52arcs))
+#geometry.set_uniform_tube_and_energy_specs_by_overriding_edgeLength(0.225)
+
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.trefoil50Biarcs_56arcs, sphereDensity=4))
+#geometry.set_uniform_tube_and_energy_specs_by_overriding_edgeLength(0.226)
+#geometry.curve_object.rescale_geometry(40/39.68504)
+
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.trefoil50Biarcs_56arcs, sphereDensity=5))
+#geometry.curve_object.rescale_geometry(40/39.68504)
+
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.hopfLink50_56arcs, sphereDensity=3))
+
+geometry.curve_object.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
+#geoClass.makePointCloudPoly([pt for subList in geometry.curve_object.curve_vertices for pt in subList], fileLocation,'test_'+str(frameNumber))
+#geoClass.makeFilFile([pt for subList in geometry.curve_object.curve_vertices for pt in subList], 'trefoil40_'+str(frameNumber), geometry.input_R)
+geometry.evaluate_embedded_measures()
+geometry.evaluate_measures()
+
+if rank ==0:
+    if geometry.curve_object.geometryType == "Biarc":
+        print("strand lengths ", list(map(lambda x: round(x, 5), geometry.curve_object.evaluate_curve_length(geometry.curve_object.data))))
+    print("curve is of ", len(geometry.curve_object.data), "strands and each strand has ", [len(geometry.curve_object.data[i]) for i in range(len(geometry.curve_object.data))])
+    print("edge length is fixed to ", geometry.curve_object.edgeLength)
+    print("computing with ball radius ", geometry.input_R)
+    print(geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0)
+    print(geometry.V, geometry.A, geometry.C, geometry.X)
+    print("Initialised curve", rank, "of length", round(geometry.evaluate_normalised_energy(),3), "(E - E0)/L = ", geometry.evaluate_normalised_energy(), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())))
+
+#set up the data to be communicated between processes
+allgather_data={}
+allgather_data["geometry"] = geometry
+allgather_data["energy"] = geometry.evaluate_normalised_energy()
+#allgather_data["temp"] = 0.0
+
+if rank==0:
+     print("annealing at T_0 = ", T, " systems are exchanged every ", allgather_time, "over a total number of ", numberOfRounds, "rounds")
+     print("starting experiment which will end in ", round((numberRoundsVaryT*numberSecondsBetweenUpdatingTempByVaryT + numberOfRounds*allgather_time)/(60*60*24), 3), "days from now")
+     writeData([size, overlapRatio, eta, geometry.R, geometry.r_s, geometry.input_R] + geometry.coefficients + [geoClass.countNumberOf(geometry.curve_object.curve_vertices), geometry.curve_object.edgeLength, varyT, numberRoundsVaryT, numberSecondsBetweenUpdatingTempByVaryT, T, numberOfRounds, allgather_time, structure], 'experimentData')
+
+#print(size, rank, overlapRatio, eta, geometry.R, geometry.r_s, geometry.input_R, geometry.coefficients, geoClass.countNumberOf(geometry.curve_object.curve_vertices), geometry.curve_object.edgeLength, varyT, numberRoundsVaryT, numberSecondsBetweenUpdatingTempByVaryT, T, numberOfRounds, allgather_time)
+    
+starting_time=time.time()
+last_gather=time.time()
+new_rank = rank
 allgather_time = int(sys.argv[5])#number secs computing between systems may be exchanged
 numberOfRounds = int(sys.argv[6])
 dragFactor = 5000 #number of iterations over which expectations are computed.

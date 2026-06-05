@@ -216,7 +216,7 @@ class TubularGeometry:
         
     uniform_edge_length = None
 
-    def __init__(self, overlapRatio, eta, curve_object):
+    def __init__(self, overlapRatio, eta, curve_object, alpha=0):
 
         self.curve_object = curve_object
     
@@ -273,6 +273,7 @@ class TubularGeometry:
         f1, f2, f3, f4 = self.f1_f2_f3_f4 #f2 is already set as negative
 
         self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
+        #self.coefficients = [round(1.0/pow(self.r_s, 3), 5), round((f2/f1)/pow(self.r_s, 2), 5), round((f3/f1)/self.r_s, 5), round((f4/f1), 5)]
         #print("WARNING still missing a factor 3/4pi or something")
         return None
 
@@ -287,6 +288,7 @@ class TubularGeometry:
         f1, f2, f3, f4 = self.f1_f2_f3_f4 #f2 is already set as negative
 
         self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
+        #self.coefficients = [round(1.0/pow(self.r_s, 3), 5), round((f2/f1)/pow(self.r_s, 2), 5), round((f3/f1)/self.r_s, 5), round((f4/f1), 5)]
         #print("WARNING still missing a factor 3/4pi or something")
         
         self.curve_object.edgeLength = edgeLengthValue
@@ -621,6 +623,7 @@ class Biarcs:
         numberOfTries = 0
         while numberOfTries < len(self.index_intervals_to_be_rotated):
             indices = self.index_intervals_to_be_rotated[numberOfTries]
+            numberOfTries+=1
 
             #define the transformation
             normalVector = np.array(self.data[indices[-1][0]][indices[-1][1]][1]) - np.array(self.data[indices[0][0]][indices[0][1]][1])
@@ -636,10 +639,10 @@ class Biarcs:
                 rCircle.append(m.sqrt(np.clip(np.dot(posVector[-1], posVector[-1]) - dotProd[-1]**2,0, 100)))
 
             rc = max(rCircle)
-            if rc <0.00025:
+            if rc <2*dMin:
                 continue
             d_upperBound = dMax
-            while d_upperBound>1000*dMin:
+            while d_upperBound>10*dMin:
                 d = np.random.uniform(dMin, d_upperBound)
                 angle = angleChoice(dAngle(rc, d))
                 random.shuffle(angle)
@@ -686,9 +689,9 @@ class Biarcs:
                             tmpGeometryData[i][j]=newTrianglePositions.pop(0)
                         return tmpGeometryData
 
-                d_upperBound = 0.15*d_upperBound
+                d_upperBound = 0.5*d_upperBound
 
-            numberOfTries+=1
+        return 1
               
     def make_curve_polyFile(self, fileLocation, fileName, pointsPerArcInterpolation=3, resolveArcs=False):
         """Each arc is interpolated with pointsPerArcInterpolation points and the resulting set of concatenated points is written as a .poly file to be read with Houdini"""
@@ -904,28 +907,38 @@ class ThreadedBeads():
             f.close()
             self.data = []
             while len(readList)>1:
-                strand = []
+                line = readList.pop(0)
+                line = line.split(' ')
+                pt = np.array([float(line[0]), float(line[1]), float(line[2])])
+                strand = [pt]
+                #add a second point to get a very rough estimate of the edgelength
+                line = readList.pop(0)
+                line = line.split(' ')
+                pt = np.array([float(line[0]), float(line[1]), float(line[2])])
+                strand.append(pt)
+                rough_edgeLength = np.linalg.norm(pt - strand[0])
                 line = readList.pop(0)
                 while line != 'END':
                     line = line.split(' ')
                     pt = np.array([float(line[0]), float(line[1]), float(line[2])])
-                    strand.append(pt)
+                    if np.linalg.norm(pt - np.array(strand[-1])) > 1.1*rough_edgeLength:#next point must belong to a new strand
+                        self.data.append(strand)
+                        strand=[pt]
+                    else:
+                        strand.append(pt)
                     line = readList.pop(0)
-                self.data.append(strand)
+                if len(strand)>0:
+                    self.data.append(strand)
 
         self.configType = "open" if (openOrClosed) else "closed" #options are closed or open
 
-        self.curve_vertices = self.evaluate_curve_vertices(self.data) 
-
         self.length = sum(self.compute_length())
-        print(returnLengthOfPointList(self.curve_vertices, self.configType))
+        #returnLengthOfPointList(self.curve_vertices, self.configType)
 
         if edgeLength > 0:
             self.edgeLength = edgeLength
         else:
             self.edgeLength = self.compute_average_edge_length()
-
-        print(self.compute_average_edge_length())
 
         rTube = 1.0
 
@@ -941,6 +954,7 @@ class ThreadedBeads():
 
         self.index_intervals_to_be_rotated = self.generate_index_intervals_to_be_rotated(nMax)
 
+        self.curve_vertices = self.evaluate_curve_vertices(self.data) 
 
 
     def compute_average_edge_length(self):
@@ -970,7 +984,7 @@ class ThreadedBeads():
                 runningTotal+=np.linalg.norm(self.data[i][j] - self.data[i][j-1]) 
                 j+=1
             if self.configType=='closed':
-                runningTotal+=np.linalg.norm(self.data[i][-1] - self.data[i][0]) 
+                runningTotal+=np.linalg.norm(self.data[i][0] - self.data[i][-1]) 
             result.append(runningTotal)
         return result
 
@@ -1220,7 +1234,7 @@ class ThreadedBeads():
                 continue
 
             d_upperBound = dMax
-            while d_upperBound>1000*dMin:
+            while d_upperBound>10*dMin:
                 d = np.random.uniform(dMin, d_upperBound)
                 angle = angleChoice(dAngle(rc, d))
                 random.shuffle(angle)
@@ -1243,11 +1257,9 @@ class ThreadedBeads():
                             if simp_func.returnTurningAngleForControlTriangle(newPos[-1], self.data[ind[-1][0]][ind[-1][1]], self.data[ind[-1][0]][indexNextJ(ind[-1])]) > 2*self.deltaStar:
                                 continue
                     else:
-                        #if simp_func.returnTurningAngleForControlTriangle(self.data[ind[0][0]][indexPrevJ(ind[0])], self.data[ind[0][0]][ind[0][1]], newPos[0]) > 2*self.deltaStar:
-                        if simp_func.returnTurningAngleForControlTriangle(self.data[ind[0][0]][indexPrevJ(ind[0])], self.data[ind[0][0]][ind[0][1]], newPos[0]) > max(2*self.deltaStar, simp_func.returnTurningAngleForControlTriangle(self.data[ind[0][0]][indexPrevJ(ind[0])], self.data[ind[0][0]][ind[0][1]], self.data[ind[0][0]][indexNextJ(ind[0])])):
+                        if simp_func.returnTurningAngleForControlTriangle(self.data[ind[0][0]][indexPrevJ(ind[0])], self.data[ind[0][0]][ind[0][1]], newPos[0]) > 2*self.deltaStar:
                             continue
-                        #if simp_func.returnTurningAngleForControlTriangle(newPos[-1], self.data[ind[-1][0]][ind[-1][1]], self.data[ind[-1][0]][indexNextJ(ind[-1])]) > 2*self.deltaStar:
-                        if simp_func.returnTurningAngleForControlTriangle(newPos[-1], self.data[ind[-1][0]][ind[-1][1]], self.data[ind[-1][0]][indexNextJ(ind[-1])]) > max(2*self.deltaStar, simp_func.returnTurningAngleForControlTriangle(self.data[ind[-1][0]][indexPrevJ(ind[-1])], self.data[ind[-1][0]][ind[-1][1]], self.data[ind[-1][0]][indexNextJ(ind[-1])])):
+                        if simp_func.returnTurningAngleForControlTriangle(newPos[-1], self.data[ind[-1][0]][ind[-1][1]], self.data[ind[-1][0]][indexNextJ(ind[-1])]) > 2*self.deltaStar:
                             continue
 
                     #check the overlapping arc condition
@@ -1258,7 +1270,7 @@ class ThreadedBeads():
                             tmpGeometryData[i][j]=newPos.pop(0)
                         return tmpGeometryData
 
-                d_upperBound = 0.25*d_upperBound
+                d_upperBound = 0.5*d_upperBound
 
             numberOfTries+=1
               
