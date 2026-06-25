@@ -9,7 +9,6 @@ from copy import deepcopy
 
 import simple_functions as simp_func
 import morphometry as mm
-import self_distance_c  as self_dist
 
 def randomOrder(dataList , repetitions = 1):
     """Returns a shuffled list of all indices in dataList with repetitions."""
@@ -196,6 +195,21 @@ def makeFilFile(pointList,fileName, radius):
         f1.write(str(dec.Decimal(str(round(pointList[i][0],5))))+' '+str(dec.Decimal(str(round(pointList[i][1],5))))+' '+str(dec.Decimal(str(round(pointList[i][2],5))))+' '+str(dec.Decimal(str(radius)))+'\n')
     f1.close()
     return None
+#
+#def makeObjFile(pointList, fileName):
+#    """
+#    Function: makeObjFile
+#    ---------------------------------------------------------------------------------------------------------------------
+#    writes the point list to .fil file as input for Roland's program
+#    nested list of points
+#    r float
+#    fileName string
+#    """
+#    f1 = open('./inputFiles/'+str(fileName)+'.obj', 'w')
+#    for i in range(len(pointList)):
+#        f1.write('v '+str(dec.Decimal(str(round(pointList[i][0],5))))+' '+str(dec.Decimal(str(round(pointList[i][1],5))))+' '+str(dec.Decimal(str(round(pointList[i][2],5))))+'\n')
+#    f1.close()
+#    return None
 
 class TubularGeometry:
     """ TubularGeometry object, describes the functionality of a tube given a curve. The curve is defined and mutated via the curve_object """
@@ -1248,9 +1262,8 @@ class ThreadedBeads():
                         if simp_func.returnTurningAngleForControlTriangle(newPos[-1], self.data[ind[-1][0]][ind[-1][1]], self.data[ind[-1][0]][indexNextJ(ind[-1])]) > 2*self.deltaStar:
                             continue
 
-                    #check the overlapping arc condition if self.check_new_positions_do_not_cause_overlaps(self.upper_bound_closest_self_distance, newPos, ind):
-                    if self_dist.check_new_positions_do_not_cause_overlaps(self.data, self.configType, self.skippedInteger, newPos, ind, self.upper_bound_closest_self_distance):
-
+                    #check the overlapping arc condition
+                    if self.check_new_positions_do_not_cause_overlaps(self.upper_bound_closest_self_distance, newPos, ind):
                         #return d, ind, newPos ---> Tidy: #update new positions to generate a neighbouring configuration
                         tmpGeometryData = deepcopy(self.data)
                         for (i,j) in ind[1:-1:]:
@@ -1374,8 +1387,8 @@ class ThreadedBeads():
     
     def check_reach(self, withInfo=False):
         """Function returns the minimum arc radius and half the minimum distance of the closest arc to each arc along the curve."""
+        #return (returnMinimumInNestedListOfFloats(self.generates_list_arc_radii()))
         return (returnMinimumInNestedListOfFloats(self.generates_list_arc_radii()), min(self.generate_closest_distances(withInfo=withInfo)))
-        #return (returnMinimumInNestedListOfFloats(self.generates_list_arc_radii()), min(self_dist.generate_closest_distances(self.data, self.configType, self.skippedInteger, withInfo=withInfo)))
 
     def evaluate_curve_vertices(self, geometryData):
         """Function returns the curve vertices corresponding to the data of the geometry object. 

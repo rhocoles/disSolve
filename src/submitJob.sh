@@ -5,20 +5,19 @@ geometryType="ThreadedBeads"
 
 structure='test'
 
-inputFile='/Users/harmon/programming/disSolve/program/current/disSolve/src/test_1.txt'    # ---> each parallel process gets the same initial configuration
+inputFile='/Users/harmon/programming/disSolve/program/current/disSolve/src/test/polyFiles/test_2_13.poly'    # ---> each parallel process gets the same initial configuration
 
-overlapRatio=0.08
-eta=0.05
+overlapRatio=0.3
+eta=0.0
+alpha=0.0
 
-numberParallelProcesses=10
+numberParallelProcesses=3
 
-#temperature range
-T_top=1.0
+#annealing parameters for the decreasing temp part
+numberSecondsPerTemp=800
+numberOfRounds=18
+T_top=2.0
 T_bot=0.1
-
-#annealing parameters
-time_to_swop=3600
-total_number_rounds=12
 
 # check current director
 dir_origin=${PWD}
@@ -30,13 +29,13 @@ dir=$dir_origin/${structure}
 mkdir -p $dir
 cd $dir
 
-#echo "an experiment with ${structure}"
-cp ${dir_origin}/main_parallelTempering.py .
+cp ${dir_origin}/main.py .
 cp ${dir_origin}/geometryClass.py .
 cp ${dir_origin}/simple_functions.py .
 cp ${dir_origin}/morphometry.py .
 cp ${dir_origin}/libmorphometry.so .
-cp ${dir_origin}/biarcs.py .
+cp ${dir_origin}/self_distance_c.py .
+cp ${dir_origin}/libself_distance_c.so .
 cp ${dir_origin}/pointFilaments.py .
 
 #may be that you don't want to do this...
@@ -46,6 +45,11 @@ rm -rf screenlog.0
 rm -rf data
 mkdir data
 
+mpirun -np $numberParallelProcesses python3.9 main.py  $overlapRatio $eta $alpha $T_top $T_bot $numberSecondsPerTemp $numberOfRounds $structure $inputFile
 
-#screen -S ${structure:0:3}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3} -L -d -m mpirun -np $numberParallelProcesses python3 main.py $structure $T_0 $overlapRatio $eta $T_step $numberSecondsPerTemp $numberOfRounds $varyT $numberRoundsVaryT $numberSecondsBetweenUpdatingTempByVaryT $inputFile
-mpirun -np $numberParallelProcesses python3.9 main_parallelTempering.py $overlapRatio $eta $T_top $T_bot $time_to_swop $total_number_rounds $inputFile
+#screenExperimentName=${test}
+#screen -S ${screenExperimentName} -L -d -m bash -lc "
+#mpirun -np $numberParallelProcesses ~/miniconda3/bin/python3 main_parallel_annealing.py \
+#$overlapRatio $eta $alpha $T_top $T_bot $numberSecondsPerTemp $numberOfRounds $structure $inputFile
+#python3 evaluate_experiment.py
+#"
