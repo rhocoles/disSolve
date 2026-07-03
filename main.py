@@ -162,8 +162,8 @@ alpha = float(sys.argv[3])
 #geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, curveData=pointFilaments.circleTB_dl0_08, edgeLength=0.08))
 #geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, curveData=pointFilaments.circleTB_dl0_08, edgeLength=0.08))
 #geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, fileName=pathToInitialConfig, edgeLength=0.08))
-geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, curveData=pointFilaments.circleTB_dl0_25, edgeLength=0.25), alpha=alpha)
-#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, fileName=pathToInitialConfig, edgeLength=0.25))
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, curveData=pointFilaments.circleTB_dl0_25, edgeLength=0.25), alpha=alpha)
+geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, fileName=pathToInitialConfig, edgeLength=0.25))
 #################### END THREADED BEADS
 
 ##################### BIARCS
@@ -193,7 +193,7 @@ isGeometric = True
 if isGeometric:
     temp_of_bin = lambda i : round(T_bot*pow((T_top/T_bot), i/(size-1)), 6)
 else:
-    temp_of_bin = lambda i : round(T_bot + ((T_top - T_bot)/(size-1))*i, 6)
+    temp_of_bin = lambda i : round(T_bot + ((T_top - T_bot)/size)*i, 6)
 
 #time between exchanging temperatures between systems
 allgather_time = int(sys.argv[6])#number secs computing between systems may be exchanged
@@ -230,11 +230,11 @@ if rank==0:
      writeData([size, overlapRatio, eta, geometry.R, geometry.r_s, geometry.input_R] + geometry.coefficients + [geoClass.countNumberOf(geometry.curve_object.curve_vertices), geometry.curve_object.edgeLength, T_bot, T_top, numberOfRounds, allgather_time, structure, alpha, time.time(), int(isGeometric)], 'experimentData')
      writeData([str(temp_of_bin(k)) for k in range(size)], 'temperatures')
 
-rounds = 0       #even rounds (T_{i} for i even communicates with T_{i+1}) odd rounds (T_{i} for i odd communicates with T_{i+1}) i is BIN_INDEX
 it_no =0
 it_no_=0
 accept=0
-writeData([it_no, T, 1, 0, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.curve_object.length, geometry.evaluate_normalised_energy(), frameNumber, 1.0, time.time(), rank, allgather_data["bin_index"], rounds, it_no_], fileName)
+writeData([it_no, T, 1, 0, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.curve_object.length, geometry.evaluate_normalised_energy(), frameNumber, 1.0, time.time(), rank, allgather_data["bin_index"]], fileName)
+rounds = 0       #even rounds (T_{i} for i even communicates with T_{i+1}) odd rounds (T_{i} for i odd communicates with T_{i+1}) i is BIN_INDEX
 start_time = time.time()
 while rounds < numberOfRounds:
 
