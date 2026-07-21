@@ -5,6 +5,12 @@ from datetime import datetime
 import socket
 import papermill as pm
 import subprocess
+from email.message import EmailMessage
+import math
+import json
+import argparse
+import shutil
+import zipfile
 
 
 def format_timestamp_custom(unix_time):
@@ -16,110 +22,8 @@ def get_computer_name():
     computer_name = socket.gethostname()
     return str(computer_name)
 
-def initialise_db(name):
 
-    DB_FILE = name+".db"
-    
-    db = sqlite3.connect(DB_FILE)   #opens or creates a database call DB_FILE
-    db.execute("PRAGMA foreign_keys=1") 
-    db.row_factory = sqlite3.Row
-    cur = db.cursor()               #this is the curser which executes the sqlite command line scripts and returns the current position when iterating over results in the table
-    
-    q="""
-    CREATE TABLE IF NOT EXISTS _experiments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        rs TEXT NOT NULL DEFAULT '',                                            -- solvent radius   (value in (0.02, 0.5)  3 dec places)
-        eta TEXT NOT NULL DEFAULT '',                                           -- eta              (value in (0, 0.495) 3 dec places 
-        prefactors TEXT NOT NULL DEFAULT '',                                    -- [alpha_1, alpha_2, alpha_3, alpha_4]  (alpha_i in R)
-        prefactors_normalised_leading_term_is_one TEXT NOT NULL DEFAULT '',     -- [1, alpha_2/alpha_1, alpha_3/alpha_1, alpha_4/alpha_1] 
-        minSolvationFreeEnergy REAL,                                            -- Fsol computed using prefactors 
-        minEnergy REAL,                                                         -- energy computed using prefactors_normalised_leading_term_is_one            
-        minEnergy_normalised REAL,                                              -- E - E0 with E0 computed using the embedded measures and both energies computed using the prefactors_normalised_leading_term_is_one
-        min_energy_computed TEXT NOT NULL DEFAULT '',                           -- string list of the form (E - E0 etc, curve_id) so if you compute the energy anew of a given curve example, this in information is added here in this form. I would extend this to be a list of such tuples and organise by date, but lets see how useful this is
-        startDate TEXT,                                                         -- start date
-        completionDate TEXT,                                                    -- end date
-        size INTEGER,                                                           -- numer of parallel processes
-        computerName TEXT,                                                      -- name of computer
-        temperature TEXT,                                                       -- (T_bot, T_top, description)
-        number_of_rounds INTEGER,                                               -- number of rounds = exchanges attempted
-        allgather_time REAL                                                     -- seconds computed between rounds/attempted exchanges
-    )"""
-    cur.execute(q)
-    
-    q="""
-    CREATE TABLE IF NOT EXISTS _experiments_all_curves (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        experimentID INTEGER,                                                   
-        pointCoordinates TEXT,                                                   -- string of the form [[x, y, z], [x, y, z], ..., ]
-        frameNumber INTEGER,                                                     -- frame number    
-        rankNumber INTEGER,                                                      -- number of the parallel process
-        temp REAL,                                                               -- temperature
-        energy REAL,                                                             -- energy (normalised with respect to embedded energy and length)
-        time_in_sequence REAL,                                                   -- time in sequence (references start time of the experiment)
-        FOREIGN KEY (experimentID) REFERENCES _experiments(id)                   -- experiment id
-    )"""
-    cur.execute(q)
-    
-    q="""
-    CREATE TABLE IF NOT EXISTS _measures (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        curveID INTEGER,
-        inputSphereRadius REAL,                                                  -- this is the input radius with which the measures are computed
-        V0 REAL,                                                                 -- embedded volume
-        V REAL,                                                                  -- volume 
-        A0 REAL,                                                                 -- embedded surface area
-        A REAL,                                                                  -- surface rea 
-        C0 REAL,                                                                 -- embedded integrated mean curvature of boundary
-        C REAL,                                                                  -- integrated mean curvature of boundary
-        X0 REAL,                                                                 -- embedded Euler characteristic
-        X REAL,                                                                  -- Euler characteristic 
-        L REAL,                                                                  -- curve length (sum of edges)
-        edgeLength REAL,                                                         -- average edge length between vertices
-        numberOfBalls INTEGER,                                                   -- number of vertices
-        radiusGyration REAL,                                                     -- radius of gyration (for sorting data, needs to be computed and updated in a separate script)
-        reachOfClosedComplement REAL,                                            -- reach of closed complement of ball union for given inputSphereRadius (for sorting data, needs to be computed and updated in a separate script)   
-        FOREIGN KEY (curveID) REFERENCES _experiments_all_curves(id)             -- curve example id
-    )"""
-    cur.execute(q)
-    
-    q="""
-    CREATE TABLE IF NOT EXISTS _experiment_stats (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        experimentID INTEGER,
-        round_nbr INTEGER,                                                      -- round number
-        temperatures TEXT,                                                      -- T_0, T_1, ... Tn-1 where n= size
-        prob TEXT,                                                              -- p_0, p_1, ... , pn-1 where n=size and p_i is the probability that binIndex i exchanges temperature with binIndex i+1 if i%2 == round_nbr%2
-        acceptOrNot TEXT,                                                       -- a_0, a_1, a_2, ...a_n-1 where a_i = 1 means binIndex i exchanges temperature with binIndex i+1 and a_i = 0 means did not exchange iff i%2==round_nbr
-        binIndices TEXT,                                                        -- 0, 2, n-1, 4 ... list of n integers in order rank: bin_index
-        energy TEXT,                                                            -- E_0, E_1, ... En-1 where n=size E_i: energy rank i
-        FOREIGN KEY (experimentID) REFERENCES _experiments(id)                  -- experiment id
-    )"""
-    cur.execute(q)
-
-    q="""
-    CREATE TABLE IF NOT EXISTS _experiment_stats_intra_rounds (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        curveID INTEGER,
-        rank INTEGER,                                                           -- number of parallel chain
-        it_no INTEGER,                                                          -- iteration number
-        T REAL,                                                                 -- temperature
-        prob REAL,                                                              -- probability of accepting new move
-        deltaE REAL,                                                            -- energy difference between move
-        accept  INTEGER,                                                        -- cumulative acceptance    
-        energy REAL,                                                            -- energy
-        bin_index INTEGER,                                                      -- bin index
-        time REAL,                                                              -- time stamp in seconds
-        FOREIGN KEY (curveID) REFERENCES _experiments_all_curves(id)            -- curve id
-    )"""
-    cur.execute(q)
-
-    db.commit()
-    db.close()
-
-    return None
-
-
-def load_experiment_data():
+def load_experiment_data(experimentID):
 
     base_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else "."
     data_dir = os.path.join(base_dir, "data")
@@ -147,98 +51,132 @@ def load_experiment_data():
     T_top = float(line[13])
     numberOfRounds = int(float(line[14]))
     allgather_time = int(float(line[15]))
-    geometric = bool(int(float(line[19])))
-    if geometric:
-        description = 'geometric'
-    else:
-        description = 'linear'
-    temperature_str = '('+str(T_bot)+','+str(T_top)+', '+description+')'
-    
     db_name = str(line[16])#Structure
     alpha = str(line[17])
     start = format_timestamp_custom(float(line[18]))
-
+    temperature_description = line[19]
+    assert temperature_description in ("geometric", "linear", "temp_scan"), f"Unexpected temperature_description: {temperature_description!r}" #assert condition, message checks that condition is True; if it's not, it raises an AssertionError with message and stops execution
+    initial_curve_configs = line[20]
     end = format_timestamp_custom(time.time())
     comp_name = get_computer_name()
 
-    if not os.path.exists(os.path.join(data_dir, "temperatures.txt")):
-        raise FileNotFoundError(f"Could not find temperatures.txt")
-
-    with open(os.path.join(data_dir, "temperatures.txt"), "r") as f:
-        temperatures_str = f.read().strip()
-    temperatures = str([float(t) for t in temperatures_str.split(" ") if t])
-
-    initialise_db(db_name)
     DB_FILE = f"{db_name}.db"
     db = sqlite3.connect(DB_FILE)
     db.execute("PRAGMA foreign_keys=1")
     cur = db.cursor()
 
     cur.execute('''
-        INSERT INTO _experiments (
-            rs, 
-            eta, 
-            prefactors, 
-            startDate,
-            completionDate,
-            size,
-            computerName,
-            temperature,
-            number_of_rounds,
-            allgather_time
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        f"{overlapRatio:.3f}",
-        f"{eta:.3f}",
+    UPDATE _experiments SET
+        rs = ?,
+        eta = ?,
+        prefactors = ?,
+        startDate = ?,
+        completionDate = ?,
+        size = ?,
+        computerName = ?,
+        T_bot = ?,
+        T_top = ?,
+        temperature_description = ?,
+        number_of_rounds = ?,
+        allgather_time = ?,
+        initial_curve_configs = ?
+        WHERE id = ?
+        ''', (
+        round(overlapRatio, 3),
+        round(eta, 3),
         str(prefactors),
         start,
         end,
         size,
         comp_name,
-        temperature_str, 
-        numberOfRounds, 
-        allgather_time
+        T_bot,
+        T_top,
+        temperature_description,
+        numberOfRounds,
+        allgather_time,
+        initial_curve_configs,
+        experimentID
     ))
-
-    experiment_id = cur.lastrowid
 
     db.commit()
     db.close()
 
-    return db_name, experiment_id
+    return None
 
-def read_point_coordinates_from_polyFile(file_name):
-    if not os.path.exists(file_name):
-        print(f"Warning: Poly file not found at {file_name}")
-        return ""
-        
-    coordinates_list = ""
-    reading_points = False
-    
-    with open(file_name, "r") as f:
-        for line in f:
-            line = line.strip()
+def read_poly_file(full_path_poly):
+    with open(full_path_poly, 'r') as f:
+        lines = f.read().splitlines()
 
-            if line == "POINTS":
-                reading_points = True
-                continue
-            elif line == "POLYS":
-                break
-                
-            if reading_points:
-                # Example line -> "1: -14.77499 -0.41406 -11.20048 c(0.055,0.471,0.8,1.0)"
-                # Split at 'c(' to isolate the coordinates from the color values
-                coord_part = line.split("c(")[0]
-                
-                # Split at ':' to drop the line number prefix
-                xyz = coord_part.split(":")[1].strip()+", "
-                
-                coordinates_list+=xyz
-                    
-    return str(coordinates_list)
+    # split into POINTS and POLYS sections
+    point_lines = lines[lines.index('POINTS') + 1: lines.index('POLYS')]
+    strand_lines = lines[lines.index('POLYS') + 1: lines.index('END')]
 
-def load_curve_data(experiment_id, db_name):
-    # Mac/Linux safe paths
+    #points into a dict
+    points = {}
+    for line in point_lines:
+        idx, rest = line.split(': ')
+        coords = list(map(float,  rest.split(' c(')[0].split()))
+        points[int(idx)] = coords
+
+    #points into strand
+    curve = []
+    configType = []
+    for line in strand_lines:
+        indices = list(map(int, line.split(': ')[1].split()))
+        if indices[0] == indices[-1]:
+            configType.append('closed')
+            indices = indices[:-1]
+        else:
+            configType.append('open')
+        curve.append([points[i] for i in indices])
+
+    numberOfBalls = sum(len(c) for c in curve)
+
+    return curve, numberOfBalls, configType
+
+def center_curve_and_compute_radius_of_gyration(curveData):
+    all_points = [p for strand in curveData for p in strand]
+    n = len(all_points)
+
+    centroid = [
+        sum(p[0] for p in all_points) / n,
+        sum(p[1] for p in all_points) / n,
+        sum(p[2] for p in all_points) / n,
+    ]
+
+    centered_curve = [
+        [[p[0] - centroid[0], p[1] - centroid[1], p[2] - centroid[2]] for p in strand]
+        for strand in curveData
+    ]
+
+    radius_gyration = math.sqrt(
+        sum(p[0]**2 + p[1]**2 + p[2]**2 for strand in centered_curve for p in strand) / n
+    )
+
+    return centered_curve, radius_gyration
+
+def compute_curve_length_and_edge_length(curveData, configType):
+    total_length = 0.0
+    total_edges = 0
+
+    for strand, strand_type in zip(curveData, configType):
+        n = len(strand)
+        num_edges = n if strand_type == 'closed' else n - 1
+
+        for i in range(num_edges):
+            p1 = strand[i]
+            p2 = strand[(i + 1) % n]  # wraps around back to start for closed strands
+            edge_len = math.sqrt(sum((a - b) ** 2 for a, b in zip(p1, p2)))
+            total_length += edge_len
+
+        total_edges += num_edges
+
+    average_edge_length = total_length / total_edges if total_edges > 0 else 0.0
+
+    return round(total_length, 3), round(average_edge_length, 5)
+
+
+def load_curve_data(experimentID, db_name):
     base_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else "."
     data_dir = os.path.join(base_dir, "data")
     poly_dir = os.path.join(base_dir, "polyFiles")
@@ -253,6 +191,8 @@ def load_curve_data(experiment_id, db_name):
 
     size = int(float(line[0]))
     overlapRatio = float(line[1])
+    eta = float(line[2])
+    reachConstraint = float(line[3])
     inputSphereRadius = float(line[5])
     #prefactors = [float(line[6]), float(line[7]), float(line[8]), float(line[9])]
     numberOfBalls = int(float(line[10]))
@@ -290,7 +230,7 @@ def load_curve_data(experiment_id, db_name):
 
             # --- Map values exactly to your index map ---
             it_no_val      = int(float(values[0]))      # index 0
-            temp_val       = float(values[1])           # index 1
+            temperature    = float(values[1])           # index 1
             prob_val       = round(float(values[2]),3)  # index 2
             deltaE_val     = round(float(values[3]), 5) # index 3
             
@@ -302,43 +242,57 @@ def load_curve_data(experiment_id, db_name):
             a0_val         = float(values[9])        # index 9
             c0_val         = float(values[10])       # index 10
             x0_val         = float(values[11])       # index 11
-            l_val          = float(values[12])       # index 12
-            energy_val     = round(float(values[13]), 5)    # index 13 (E - E0)/L
+            #l_val          = float(values[12])       # index 12
+            energy         = round(float(values[13]), 8)    # index 13 (E - E0)/L
             
-            frame_num_val  = int(float(values[14]))  # index 14
-            acc_ratio_val  = int(float(values[15]))  # index 15
-            time_val       = float(values[16]) - start # index 16
-            # rank_val     = int(values[17])         # index 17
-            bin_idx_val    = float(values[18])       # index 18
+            frameNumber  = int(float(values[14]))  # index 14
+            acceptRatio  = int(float(values[15]))  # index 15
+            time_val     = float(values[16]) - start
+            rankNumber   = int(float(values[17]))
+            bin_idx_val  = int(float(values[18]))      # index 18
+            round_nbr    = int(float(values[19]))
+            it_no_intra_round = int(float(values[20]))     
 
-            poly_file_name = f"test_{rank_idx}_{frame_num_val}.poly"
+            #minLocalRadiusCurvature = int(float(values[21]))     
+            #selfDistance = int(float(values[22]))     
+
+            poly_file_name = f"test_{rankNumber}_{frameNumber}.poly"
             poly_file_path = os.path.join(poly_dir, poly_file_name)
-            coordinates_str = read_point_coordinates_from_polyFile(poly_file_path)
+            curveData, numberOfBalls, configType  = read_poly_file(poly_file_path)
+            curveData, Rg = center_curve_and_compute_radius_of_gyration(curveData)
+            L, edgeLength = compute_curve_length_and_edge_length(curveData, configType)
 
             # --- 1. INSERT INTO _experiments_all_curves ---
             cur.execute('''
                 INSERT INTO _experiments_all_curves (
-                    experimentID, pointCoordinates, frameNumber, rankNumber, temp, energy, time_in_sequence
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    experimentID, pointCoordinates, frameNumber, rankNumber, time_in_sequence, temperature, energy, L, edgeLength, numberOfBalls, reachConstraint, radiusGyration, minLocalRadiusCurvature, selfDistance 
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
-                experiment_id,
-                coordinates_str,
-                frame_num_val,
-                rank_idx, 
-                temp_val,
-                energy_val,
-                round(time_val,1)
+            experimentID,
+            json.dumps(curveData),
+            frameNumber,
+            rankNumber,
+            time_val,
+            temperature,
+            energy,
+            L,
+            edgeLength,
+            numberOfBalls,
+            reachConstraint,
+            round(Rg, 5),
+            None,
+            None
             ))
-
             curve_id = cur.lastrowid
 
             # --- 2. INSERT INTO _measures (Linked via curveID) ---
             cur.execute('''
                 INSERT INTO _measures (
-                    curveID, inputSphereRadius, V0, V, A0, A, C0, C, X0, X, L, edgeLength, numberOfBalls
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    curveID, experimentID, inputSphereRadius, V0, V, A0, A, C0, C, X0, X
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 curve_id,
+                experimentID,
                 inputSphereRadius,
                 round(v0_val, 4),
                 round(v_val, 4),
@@ -348,27 +302,26 @@ def load_curve_data(experiment_id, db_name):
                 round(c_val, 4),
                 round(x0_val, 4),
                 round(x_val, 4),
-                round(l_val, 4),
-                edgeLength,
-                numberOfBalls
             ))
 
             #---3. INSERT INTO _experiment_stats_intra_rounds (Linked via curveID) ---
             cur.execute('''
                 INSERT INTO _experiment_stats_intra_rounds (
-                    curveID, rank, it_no, T, prob, deltaE, accept, energy, bin_index, time
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    curveID, rank, it_no, T, prob, deltaE, accept, energy, bin_index, time, round_nbr, it_no_intra_round
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 curve_id,
-                rank_idx,
+                rankNumber,
                 it_no_val,
-                temp_val,
+                temperature,
                 prob_val,
                 deltaE_val,
-                acc_ratio_val,
-                energy_val, 
+                acceptRatio,
+                energy, 
                 bin_idx_val,
-                time_val
+                time_val,
+                round_nbr,
+                it_no_intra_round
            ))    
 
         db.commit()
@@ -377,7 +330,7 @@ def load_curve_data(experiment_id, db_name):
     db.close()
     return None
 
-def load_temperature_data(experiment_id, db_name):
+def load_temperature_data(experimentID, db_name):
 
     DB_FILE = f"{db_name}.db"
     db = sqlite3.connect(DB_FILE)
@@ -424,7 +377,7 @@ def load_temperature_data(experiment_id, db_name):
                     experimentID, round_nbr, temperatures, prob, acceptOrNot, binIndices, energy
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (
-                experiment_id,
+                experimentID,
                 round_nbr,
                 temperatures,
                 prob, 
@@ -437,50 +390,77 @@ def load_temperature_data(experiment_id, db_name):
     db.close()
     return None
 
-def email_completion(db_name, experiment_id, pdf_file=''):
+def email_completion(db_name, experimentID, pdf_files=''):
     msg = EmailMessage()
     msg["From"] = "coles@math.tu-chemnitz.de"
     msg["To"] = "rhoslyn.coles@mathematik.tu-chemnitz.de"
     msg["Subject"] = "job completion on"+socket.gethostname()
 
-    m=f"Hello job with {db_name} just finished on {get_computer_name()} ;-) \n\n"
+    m=f"Hello experiment {experimentID} with {db_name} just finished on {get_computer_name()} ;-) \n\n"
 
-    if pdf_file=='':
+    if pdf_files=='':
         m+="problem with evaluation so maybe something else didn't work"
     else:
         m+="see attachment with pdf file \n"
  
     msg.set_content(m)
  
-    if pdf_file!='':
+    if pdf_files!='':
         m+="see attachment with pdf file \n"
-        with open(pdf_file, "rb") as f:
-            msg.add_attachment(f.read(),maintype="application",subtype="pdf",filename=pdf_file)
+        for pdf_file in pdf_files:
+            with open(pdf_file, "rb") as f:
+                msg.add_attachment(f.read(),maintype="application",subtype="pdf",filename=pdf_file)
     # send via local sendmail
     p = subprocess.Popen(["/usr/sbin/sendmail", "-t", "-oi"], stdin=subprocess.PIPE)
     p.communicate(msg.as_bytes())
 
     return None
 
-
-
 def do():
-    """
-    -----------------------------------------------------------------
-    not sure how this method should be, on the one hand you want to add in details, like the step number, the temperature range, the date started the computer the experiment is being run on... so it seems like this one should be a centralised database...
-    """
-    #db_name, experiment_id = load_experiment_data()
-    #print(db_name, experiment_id)
-    db_name, experiment_id = "circleTB", 1
-    #load_curve_data(experiment_id, db_name)
-    #output_name = 'results_'+str(experiment_id) #maybe structure_rs_eta...
-    #pm.execute_notebook('evaluate_experiment.ipynb',output_name+'.ipynb',  parameters={"db_name" :db_name})
-    #subprocess.run(["jupyter", "nbconvert", "--to", "pdf", output_name+".ipynb", "--no-input"])
-    #load_temperature_data(experiment_id, db_name)
-    output_name = 'temp_stats_'+str(experiment_id)
-    pm.execute_notebook('evaluate_experiment_temperatures.ipynb', output_name+'.ipynb',  parameters={"db_name" :db_name})
+    parser = argparse.ArgumentParser()
+    parser.add_argument("name")
+    args = parser.parse_args()
+
+    DB_FILE = f"{args.name}.db"
+    db = sqlite3.connect(DB_FILE)
+    cur = db.cursor()
+    cur.execute("SELECT id FROM _experiments ORDER BY startDate DESC LIMIT 1")
+    experimentID = cur.fetchone()[0]
+    db.close()
+
+    load_experiment_data(experimentID)
+    load_curve_data(experimentID, args.name)
+
+    #move polyFiles with test_#rank_#frnbr.poly naming convention into polyFiles_{experimentID}
+    archived_dir = f"polyFiles_{experimentID}"
+    shutil.move("polyFiles", archived_dir)
+    shutil.make_archive(archived_dir, 'zip', archived_dir)
+    shutil.rmtree(archived_dir)
+
+    #evaluate results
+    output_name = 'results_'+str(experimentID) #maybe structure_rs_eta...
+    pm.execute_notebook('evaluate_experiment.ipynb',output_name+'.ipynb',  parameters={"name" : args.name})
     subprocess.run(["jupyter", "nbconvert", "--to", "pdf", output_name+".ipynb", "--no-input"])
-    #email_completion(db_name, experiment_id, pdf_file=output_name+'.pdf')
+    results_attachment = [output_name+'.pdf']
+    
+    #temperature evaluation
+    db = sqlite3.connect(DB_FILE)
+    cur = db.cursor()
+    cur.execute("SELECT temperature_description FROM _experiments WHERE id = ?", (experimentID,))
+    temperature_description = cur.fetchone()[0] 
+    db.close()
+    output_name = 'temp_stats_'+str(experimentID)
+    if temperature_description ==  "temp_scan":
+        pm.execute_notebook('evaluate_experiment_temperature_scan.ipynb', output_name+'.ipynb',  parameters={"name" : args.name})
+    else:
+        load_temperature_data(experimentID, args.name)
+        pm.execute_notebook('evaluate_experiment_temperatures.ipynb', output_name+'.ipynb',  parameters={"name" : args.name})
+    subprocess.run(["jupyter", "nbconvert", "--to", "pdf", output_name+".ipynb", "--no-input"])
+
+    #email results
+    results_attachment.append(output_name+'.pdf')
+    email_completion(args.name, experimentID, pdf_files=results_attachment)
+
     return None
 
 do()
