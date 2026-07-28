@@ -199,7 +199,7 @@ def do_move_and_check_energy_and_accept_or_reject(geometry, dMin, dMax, T):
     deltaE, size_measures = geometry.evaluate_energy_difference(tmpCurveVertices) #if ThreadedBeads size_measures =  measures if Biarc size_measures = (measures, embedded_measures, length)    
 
     #accept or reject energy if increased
-    (tmp_0or1, prob) = acceptOrReject(deltaE, T)#calculate probability of achieving deltaE choose via random number generation
+    (tmp_0or1, prob) = acceptOrReject(deltaE, T*geometry.curve_object.length)#calculate probability of achieving deltaE choose via random number generation
     if tmp_0or1==1:
         geometry.update_geometry(tmpGeometryData, tmpCurveVertices, size_measures)
             
@@ -278,8 +278,7 @@ geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(co
 #geometry.set_uniform_tube_and_energy_specs_by_overriding_edgeLength(0.22722)
 ################## END BIARCS
 
-geometry.curve_object.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
-geoClass.makePointCloudPoly([pt for subList in geometry.curve_object.curve_vertices for pt in subList], fileLocation,'test_'+str(frameNumber))
+#geoClass.makePointCloudPoly([pt for subList in geometry.curve_object.curve_vertices for pt in subList], fileLocation,'test_'+str(frameNumber))
 #geoClass.makeFilFile([pt for subList in geometry.curve_object.curve_vertices for pt in subList], 'trefoil40_'+str(frameNumber), geometry.input_R)
 geometry.evaluate_embedded_measures()
 geometry.evaluate_measures()
@@ -353,13 +352,12 @@ if temperature_description != "temp_scan":
             geometry.evaluate_embedded_measures()
             geometry.evaluate_measures()
             geometry.evaluate_normalised_energy()
-            writeData([it_no, T, prob, deltaE, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.curve_object.length, geometry.evaluate_normalised_energy(), frameNumber,  accept/it_no, time.time(), rank, allgather_data["bin_index"], rounds, it_no_] + list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), fileName)
+            writeData([it_no, T, prob, deltaE, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.curve_object.length, geometry.evaluate_normalised_energy(), frameNumber, accept/it_no_, time.time(), rank, allgather_data["bin_index"], rounds, it_no_] + list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), fileName)
             geometry.curve_object.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
             frameNumber+=1
     
         if it_no%2000==0:
-            #print("Info from rank", rank, " (E - E0)/L", round(geometry.evaluate_normalised_energy(),4), "T =", round(T,5), "acceptRatio", round(accept/it_no, 3),"E[P(deltaE>0)]=", round(probability_expectation, 3), "E[deltaE>0]=", round(deltaE_increasing_expectation, 4), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), frameNumber)
-            print("Info from rank", rank, "at bin ", allgather_data["bin_index"], " (E - E0)/L", round(geometry.evaluate_normalised_energy(),6), "T =", round(T,5), "acceptRatio", round(accept/it_no, 3), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), frameNumber)
+            print("Info from rank", rank, "at bin ", allgather_data["bin_index"], " (E - E0)/L", round(geometry.evaluate_normalised_energy(),6), "T =", round(T,5), "acceptRatio", round(accept/it_no_, 3), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), frameNumber, " for round", rounds)
     
         if time.time() - start_time > allgather_time:
     
@@ -367,8 +365,6 @@ if temperature_description != "temp_scan":
             alldatas=comm.allgather(allgather_data)
             if (rank==0):
                 print("finished round", rounds)
-                for (i,a) in enumerate(alldatas):
-                    print(i,a)
     
             is_even_or_odd = rounds%2 #even bin_indices exchange with odd
             if rank==0:
@@ -376,13 +372,16 @@ if temperature_description != "temp_scan":
                     print("even round")
                 else:
                     print("odd round")
-    
+            
+            allgather_data["prob Ti --> Ti+1"] = -1
+            allgather_data["swop"] = -1
             if allgather_data["bin_index"]%2==is_even_or_odd:# T_{i} decides whether to swop with T_{i+1}
                 if allgather_data["bin_index"]<(size - 1):#highest temperate bin swops only to lower temperature bins
                     rank_bin_index_right = [alldatas[i]["bin_index"] for i in range(size)].index(allgather_data["bin_index"] + 1)
                     tmpSwopOrNot, prob = swopOrNot(alldatas[rank_bin_index_right]["energy"], temp_of_bin(allgather_data["bin_index"] + 1), allgather_data["energy"], T)
-                    allgather_data["prob Ti --> Ti+1"] = prob
-                    print(f"{rank} is engaged in swopping with {rank_bin_index_right}", "swopOrNot prob =", prob)
+                    allgather_data["prob Ti --> Ti+1"] = prob #prob belongs to how the bin index became what it is at the s
+                    print(f"rank {rank} @bin {allgather_data['bin_index']} is engaged in swopping with {rank_bin_index_right} @bin {alldatas[rank_bin_index_right]['bin_index']}", "swopOrNot prob =", prob)
+                    comm.send((tmpSwopOrNot, prob), dest=rank_bin_index_right, tag=1)
                     if tmpSwopOrNot==1:
                         allgather_data["swop"]=1 
                         comm.send(allgather_data["bin_index"], dest=rank_bin_index_right, tag=1)
@@ -393,20 +392,30 @@ if temperature_description != "temp_scan":
                         allgather_data["swop"]=0 
                         comm.send(allgather_data["bin_index"] + 1, dest=rank_bin_index_right, tag=1)
             else:
-                if allgather_data["bin_index"]>0: #lowest temperature bin swops only with higher temperatures i.e. recieves no message
+                if allgather_data["bin_index"] > 0: #lowest temperature bin swops only with higher temperatures i.e. bin 0 recieves no message
                     rank_bin_index_left = [alldatas[i]["bin_index"] for i in range(size)].index(allgather_data["bin_index"] - 1)
-                    allgather_data["bin_index"] = comm.recv(source=rank_bin_index_left, tag=1)
-                    print(rank, "recieved bin index from rank", rank_bin_index_left)
-                    T = temp_of_bin(allgather_data["bin_index"])
+                    tmpSwopOrNot, prob = comm.recv(source=rank_bin_index_left, tag=1)
+                    allgather_data["prob Ti --> Ti+1"] = prob
+                    allgather_data["swop"] = tmpSwopOrNot
+                    if tmpSwopOrNot:
+                        allgather_data["bin_index"] = comm.recv(source=rank_bin_index_left, tag=1)
+                        print(rank, "recieved bin index from rank", rank_bin_index_left)
+                        T = temp_of_bin(allgather_data["bin_index"])
     
             alldatas=comm.allgather(allgather_data)
             if (rank==0):
-                writeData([rounds, is_even_or_odd, size] + [alldatas[i]["bin_index"] for i in range(size)] +  [alldatas[i]["swop"] for i in range(size)] + [alldatas[i]["prob Ti --> Ti+1"] for i in range(size)] + [alldatas[i]["energy"] for i in range(size)], "temp_exchange_stats")
+                writeData([rounds, is_even_or_odd, size] + [alldatas[i]["bin_index"] for i in range(size)] +  [alldatas[i]["swop"] for i in range(size)] + [alldatas[i]["prob Ti --> Ti+1"] for i in range(size)] + [alldatas[i]["energy"] for i in range(size)] + [experimentID], "temp_exchange_stats")
+                for (i,a) in enumerate(alldatas):
+                    print(i,a)
     
             comm.Barrier()
             it_no_=0
+            accept=0
             rounds+=1
             start_time = time.time()
+
+
+
 if temperature_description=="temp_scan":
     def triangle_fraction(i):
         half = numberOfRounds // 2
@@ -434,7 +443,7 @@ if temperature_description=="temp_scan":
         it_no_+=1
     
         #save iteration data
-        if (it_no + accept)%2000==0:
+        if (it_no + accept)%1000==0:
             geometry.evaluate_embedded_measures()
             geometry.evaluate_measures()
             geometry.evaluate_normalised_energy()
@@ -442,7 +451,7 @@ if temperature_description=="temp_scan":
             geometry.curve_object.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
             frameNumber+=1
     
-        if it_no%2000==0:
+        if it_no%1000==0:
             print("Info from rank", rank, " (E - E0)/L", round(geometry.evaluate_normalised_energy(),6), "T =", round(T,8), "acceptRatio", round(accept/it_no, 3), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), frameNumber)
     
         if time.time() - start_time > allgather_time:

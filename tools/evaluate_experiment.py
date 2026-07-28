@@ -253,8 +253,8 @@ def load_curve_data(experimentID, db_name):
             round_nbr    = int(float(values[19]))
             it_no_intra_round = int(float(values[20]))     
 
-            #minLocalRadiusCurvature = int(float(values[21]))     
-            #selfDistance = int(float(values[22]))     
+            minLocalRadiusCurvature = float(values[21])    
+            selfDistance = float(values[22])
 
             poly_file_name = f"test_{rankNumber}_{frameNumber}.poly"
             poly_file_path = os.path.join(poly_dir, poly_file_name)
@@ -280,8 +280,8 @@ def load_curve_data(experimentID, db_name):
             numberOfBalls,
             reachConstraint,
             round(Rg, 5),
-            None,
-            None
+            minLocalRadiusCurvature,
+            selfDistance
             ))
             curve_id = cur.lastrowid
 
@@ -433,8 +433,8 @@ def do():
 
     #move polyFiles with test_#rank_#frnbr.poly naming convention into polyFiles_{experimentID}
     archived_dir = f"polyFiles_{experimentID}"
-    shutil.move("polyFiles", archived_dir)
-    shutil.make_archive(archived_dir, 'zip', archived_dir)
+    shutil.copytree("polyFiles", archived_dir)
+    shutil.make_archive(archived_dir, 'zip', root_dir=".", base_dir=archived_dir)
     shutil.rmtree(archived_dir)
 
     #evaluate results

@@ -17,12 +17,12 @@ numberParallelProcesses=10
 
 
 #annealing parameters for the decreasing temp part
-numberSecondsPerTemp=2500
-numberOfRounds=24
-T_top=1.0
-T_bot=0.01
+numberSecondsPerTemp=2520
+numberOfRounds=12
+T_top=5.0
+T_bot=1.0
 temp_options=(geometric linear temp_scan)
-temperature_description=${temp_options[1]}   # -> "temp_scan"
+temperature_description=${temp_options[1]}
 
 
 # initial curve configs: only used when experimentID is blank (a claimed-from-BIG job always
@@ -130,6 +130,8 @@ if [ -z "$experimentID" ]; then
 fi
 echo "Initialised experiment on $(hostname) with rs=$overlapRatio, eta=$eta, experimentID=$experimentID"
 
+# to safely kill a running job (no orphaned mpirun): screen -S <name> -X stuff $'\003'
+#screen -ls; echo "---"; ps aux | grep -iE 'main\.py|mpirun|prterun' | grep -v grep
 screenExperimentName=${structure:0:3}${structure: -2}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3}
 screen -S ${screenExperimentName} -L -d -m bash -lc "
 mpirun -np $numberParallelProcesses python3.9 main.py \
@@ -140,3 +142,7 @@ else
     python3.9 evaluate_experiment.py $structure
 fi
 "
+
+# original (pre-2026-07-21): mpirun was screen's direct child, so `screen -X -S <name> quit`
+# killed it cleanly — no bash wrapper in between, but also no auto failure-marking.
+# screen -S ${structure:0:3}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3} -L -d -m mpirun -np $numberParallelProcesses python3 main.py $structure $T_0 $overlapRatio $eta $T_step $numberSecondsPerTemp $numberOfRounds $varyT $numberRoundsVaryT $numberSecondsBetweenUpdatingTempByVaryT $inputFile
