@@ -311,10 +311,10 @@ def load_curve_data(experiment_id, db_name):
             frame_num_val  = int(float(values[14]))  # index 14
             acc_ratio_val  = int(float(values[15]))  # index 15
             time_val       = float(values[16]) - start # index 16
-            # rank_val     = int(values[17])         # index 17
-            bin_idx_val    = float(values[18])       # index 18
-            round_nbr      = float(values[19])     
-            it_no_intra_round   = int(values[20])
+            rank_idx       = int(float(values[17]))
+            bin_idx_val    = int(float(values[18]))      # index 18
+            round_nbr      = int(float(values[19]))
+            it_no_intra_round = int(float(values[20]))     
 
             poly_file_name = f"test_{rank_idx}_{frame_num_val}.poly"
             poly_file_path = os.path.join(poly_dir, poly_file_name)
@@ -444,7 +444,7 @@ def load_temperature_data(experiment_id, db_name):
     db.close()
     return None
 
-def email_completion(db_name, experiment_id, pdf_file=''):
+def email_completion(db_name, experiment_id, pdf_files=''):
     msg = EmailMessage()
     msg["From"] = "coles@math.tu-chemnitz.de"
     msg["To"] = "rhoslyn.coles@mathematik.tu-chemnitz.de"
@@ -452,17 +452,18 @@ def email_completion(db_name, experiment_id, pdf_file=''):
 
     m=f"Hello job with {db_name} just finished on {get_computer_name()} ;-) \n\n"
 
-    if pdf_file=='':
+    if pdf_files=='':
         m+="problem with evaluation so maybe something else didn't work"
     else:
         m+="see attachment with pdf file \n"
  
     msg.set_content(m)
  
-    if pdf_file!='':
+    if pdf_files!='':
         m+="see attachment with pdf file \n"
-        with open(pdf_file, "rb") as f:
-            msg.add_attachment(f.read(),maintype="application",subtype="pdf",filename=pdf_file)
+        for pdf_file in pdf_files:
+            with open(pdf_file, "rb") as f:
+                msg.add_attachment(f.read(),maintype="application",subtype="pdf",filename=pdf_file)
     # send via local sendmail
     p = subprocess.Popen(["/usr/sbin/sendmail", "-t", "-oi"], stdin=subprocess.PIPE)
     p.communicate(msg.as_bytes())
@@ -474,16 +475,20 @@ def do():
     -----------------------------------------------------------------
     not sure how this method should be, on the one hand you want to add in details, like the step number, the temperature range, the date started the computer the experiment is being run on... so it seems like this one should be a centralised database...
     """
-    db_name, experiment_id = load_experiment_data()
-    #db_name, experiment_id = "circleTB", 1
+    #db_name, experiment_id = load_experiment_data()
+    db_name, experiment_id = "openChain50_dl0_25", 1
     print(db_name, experiment_id)
-    load_curve_data(experiment_id, db_name)
+    #load_curve_data(experiment_id, db_name)
     output_name = 'results_'+str(experiment_id) #maybe structure_rs_eta...
-    pm.execute_notebook('evaluate_experiment.ipynb',output_name+'.ipynb',  parameters={"db_name" :db_name})
-    subprocess.run(["jupyter", "nbconvert", "--to", "pdf", output_name+".ipynb", "--no-input"])
-    load_temperature_data(experiment_id, db_name)
-    #TOFU --> delete data folder --> do something about initial configs?
-    email_completion(db_name, experiment_id, pdf_file=output_name+'.pdf')
+    #pm.execute_notebook('evaluate_experiment.ipynb',output_name+'.ipynb',  parameters={"db_name" :db_name})
+    #subprocess.run(["jupyter", "nbconvert", "--to", "pdf", output_name+".ipynb", "--no-input"])
+    results_attachment = [output_name+'.pdf']
+    #load_temperature_data(experiment_id, db_name)
+    output_name = 'temp_stats_'+str(experiment_id)
+    #pm.execute_notebook('evaluate_experiment_temperatures.ipynb', output_name+'.ipynb',  parameters={"db_name" :db_name})
+    #subprocess.run(["jupyter", "nbconvert", "--to", "pdf", output_name+".ipynb", "--no-input"])
+    results_attachment.append(output_name+'.pdf')
+    email_completion(db_name, experiment_id, pdf_files=results_attachment)
 
     return None
 

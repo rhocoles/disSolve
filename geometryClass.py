@@ -9,6 +9,7 @@ from copy import deepcopy
 
 import simple_functions as simp_func
 import morphometry as mm
+import self_distance_c as self_dist
 
 def randomOrder(dataList , repetitions = 1):
     """Returns a shuffled list of all indices in dataList with repetitions."""
@@ -216,7 +217,7 @@ class TubularGeometry:
         
     uniform_edge_length = None
 
-    def __init__(self, overlapRatio, eta, curve_object):
+    def __init__(self, overlapRatio, eta, curve_object, alpha=0):
 
         self.curve_object = curve_object
     
@@ -273,6 +274,8 @@ class TubularGeometry:
         f1, f2, f3, f4 = self.f1_f2_f3_f4 #f2 is already set as negative
 
         self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
+        #self.coefficients = [round(1.0/pow(self.r_s, 3), 5), round((f2/f1)/pow(self.r_s, 2), 5), round((f3/f1)/self.r_s, 5), round((f4/f1), 5)]
+        #self.coefficients = [1.0, round((f2/f1)*self.r_s, 8), round((f3/f1)*(self.r_s**2), 8), round((f4/f1)*(self.r_s**3), 8)]
         #print("WARNING still missing a factor 3/4pi or something")
         return None
 
@@ -287,6 +290,8 @@ class TubularGeometry:
         f1, f2, f3, f4 = self.f1_f2_f3_f4 #f2 is already set as negative
 
         self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
+        #self.coefficients = [round(1.0/pow(self.r_s, 3), 5), round((f2/f1)/pow(self.r_s, 2), 5), round((f3/f1)/self.r_s, 5), round((f4/f1), 5)]
+        #self.coefficients = [1.0, round((f2/f1)*self.r_s, 8), round((f3/f1)*(self.r_s**2), 8), round((f4/f1)*(self.r_s**3), 8)]
         #print("WARNING still missing a factor 3/4pi or something")
         
         self.curve_object.edgeLength = edgeLengthValue
@@ -621,6 +626,7 @@ class Biarcs:
         numberOfTries = 0
         while numberOfTries < len(self.index_intervals_to_be_rotated):
             indices = self.index_intervals_to_be_rotated[numberOfTries]
+            numberOfTries+=1
 
             #define the transformation
             normalVector = np.array(self.data[indices[-1][0]][indices[-1][1]][1]) - np.array(self.data[indices[0][0]][indices[0][1]][1])
@@ -636,10 +642,10 @@ class Biarcs:
                 rCircle.append(m.sqrt(np.clip(np.dot(posVector[-1], posVector[-1]) - dotProd[-1]**2,0, 100)))
 
             rc = max(rCircle)
-            if rc <0.00025:
+            if rc <2*dMin:
                 continue
             d_upperBound = dMax
-            while d_upperBound>1000*dMin:
+            while d_upperBound>10*dMin:
                 d = np.random.uniform(dMin, d_upperBound)
                 angle = angleChoice(dAngle(rc, d))
                 random.shuffle(angle)
@@ -686,9 +692,9 @@ class Biarcs:
                             tmpGeometryData[i][j]=newTrianglePositions.pop(0)
                         return tmpGeometryData
 
-                d_upperBound = 0.15*d_upperBound
+                d_upperBound = 0.5*d_upperBound
 
-            numberOfTries+=1
+        return 1
               
     def make_curve_polyFile(self, fileLocation, fileName, pointsPerArcInterpolation=3, resolveArcs=False):
         """Each arc is interpolated with pointsPerArcInterpolation points and the resulting set of concatenated points is written as a .poly file to be read with Houdini"""
@@ -904,14 +910,28 @@ class ThreadedBeads():
             f.close()
             self.data = []
             while len(readList)>1:
-                strand = []
+                line = readList.pop(0)
+                line = line.split(' ')
+                pt = np.array([float(line[0]), float(line[1]), float(line[2])])
+                strand = [pt]
+                #add a second point to get a very rough estimate of the edgelength
+                line = readList.pop(0)
+                line = line.split(' ')
+                pt = np.array([float(line[0]), float(line[1]), float(line[2])])
+                strand.append(pt)
+                rough_edgeLength = np.linalg.norm(pt - strand[0])
                 line = readList.pop(0)
                 while line != 'END':
                     line = line.split(' ')
                     pt = np.array([float(line[0]), float(line[1]), float(line[2])])
-                    strand.append(pt)
+                    if np.linalg.norm(pt - np.array(strand[-1])) > 1.1*rough_edgeLength:#next point must belong to a new strand
+                        self.data.append(strand)
+                        strand=[pt]
+                    else:
+                        strand.append(pt)
                     line = readList.pop(0)
-                self.data.append(strand)
+                if len(strand)>0:
+                    self.data.append(strand)
 
         self.configType = "open" if (openOrClosed) else "closed" #options are closed or open
 
@@ -1217,7 +1237,7 @@ class ThreadedBeads():
                 continue
 
             d_upperBound = dMax
-            while d_upperBound>1000*dMin:
+            while d_upperBound>10*dMin:
                 d = np.random.uniform(dMin, d_upperBound)
                 angle = angleChoice(dAngle(rc, d))
                 random.shuffle(angle)
@@ -1245,15 +1265,15 @@ class ThreadedBeads():
                         if simp_func.returnTurningAngleForControlTriangle(newPos[-1], self.data[ind[-1][0]][ind[-1][1]], self.data[ind[-1][0]][indexNextJ(ind[-1])]) > 2*self.deltaStar:
                             continue
 
-                    #check the overlapping arc condition
-                    if self.check_new_positions_do_not_cause_overlaps(self.upper_bound_closest_self_distance, newPos, ind):
+                    #check the overlapping arc condition if self.check_new_positions_do_not_cause_overlaps(self.upper_bound_closest_self_distance, newPos, ind):
+                    if self_dist.check_new_positions_do_not_cause_overlaps(self.data, self.configType, self.skippedInteger, newPos, ind, self.upper_bound_closest_self_distance):
                         #return d, ind, newPos ---> Tidy: #update new positions to generate a neighbouring configuration
                         tmpGeometryData = deepcopy(self.data)
                         for (i,j) in ind[1:-1:]:
                             tmpGeometryData[i][j]=newPos.pop(0)
                         return tmpGeometryData
 
-                d_upperBound = 0.25*d_upperBound
+                d_upperBound = 0.5*d_upperBound
 
             numberOfTries+=1
               
