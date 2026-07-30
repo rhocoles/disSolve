@@ -9,6 +9,7 @@ from copy import deepcopy
 
 import simple_functions as simp_func
 import morphometry as mm
+import self_distance_c as self_dist
 
 def randomOrder(dataList , repetitions = 1):
     """Returns a shuffled list of all indices in dataList with repetitions."""
@@ -272,8 +273,9 @@ class TubularGeometry:
 
         f1, f2, f3, f4 = self.f1_f2_f3_f4 #f2 is already set as negative
 
-        #self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
-        self.coefficients = [round(1.0/pow(self.r_s, 3), 5), round((f2/f1)/pow(self.r_s, 2), 5), round((f3/f1)/self.r_s, 5), round((f4/f1), 5)]
+        self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
+        #self.coefficients = [round(1.0/pow(self.r_s, 3), 5), round((f2/f1)/pow(self.r_s, 2), 5), round((f3/f1)/self.r_s, 5), round((f4/f1), 5)]
+        #self.coefficients = [1.0, round((f2/f1)*self.r_s, 8), round((f3/f1)*(self.r_s**2), 8), round((f4/f1)*(self.r_s**3), 8)]
         #print("WARNING still missing a factor 3/4pi or something")
         return None
 
@@ -287,8 +289,9 @@ class TubularGeometry:
 
         f1, f2, f3, f4 = self.f1_f2_f3_f4 #f2 is already set as negative
 
-        #self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
-        self.coefficients = [round(1.0/pow(self.r_s, 3), 5), round((f2/f1)/pow(self.r_s, 2), 5), round((f3/f1)/self.r_s, 5), round((f4/f1), 5)]
+        self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
+        #self.coefficients = [round(1.0/pow(self.r_s, 3), 5), round((f2/f1)/pow(self.r_s, 2), 5), round((f3/f1)/self.r_s, 5), round((f4/f1), 5)]
+        #self.coefficients = [1.0, round((f2/f1)*self.r_s, 8), round((f3/f1)*(self.r_s**2), 8), round((f4/f1)*(self.r_s**3), 8)]
         #print("WARNING still missing a factor 3/4pi or something")
         
         self.curve_object.edgeLength = edgeLengthValue
@@ -1262,8 +1265,8 @@ class ThreadedBeads():
                         if simp_func.returnTurningAngleForControlTriangle(newPos[-1], self.data[ind[-1][0]][ind[-1][1]], self.data[ind[-1][0]][indexNextJ(ind[-1])]) > 2*self.deltaStar:
                             continue
 
-                    #check the overlapping arc condition
-                    if self.check_new_positions_do_not_cause_overlaps(self.upper_bound_closest_self_distance, newPos, ind):
+                    #check the overlapping arc condition if self.check_new_positions_do_not_cause_overlaps(self.upper_bound_closest_self_distance, newPos, ind):
+                    if self_dist.check_new_positions_do_not_cause_overlaps(self.data, self.configType, self.skippedInteger, newPos, ind, self.upper_bound_closest_self_distance):
                         #return d, ind, newPos ---> Tidy: #update new positions to generate a neighbouring configuration
                         tmpGeometryData = deepcopy(self.data)
                         for (i,j) in ind[1:-1:]:
