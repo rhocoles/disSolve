@@ -16,10 +16,10 @@ alpha=0.0
 numberParallelProcesses=10
 
 #annealing parameters for the decreasing temp part
-numberSecondsPerTemp=2520
-numberOfRounds=12
-T_top=5.0
-T_bot=1.0
+numberSecondsPerTemp=1200 #10800
+numberOfRounds=3
+T_top=0.1
+T_bot=0.001
 temp_options=(geometric linear temp_scan)
 temperature_description=${temp_options[1]}
 
