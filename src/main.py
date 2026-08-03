@@ -171,7 +171,7 @@ def swopOrNot(xj, Tj, xi, Ti):
         --> xj should migrate to the lower temperature system
     return 0 or 1
     """
-    prob = np.exp((1/Ti - 1/Tj)*(xj - xi))
+    prob = np.exp((1/Ti - 1/Tj)*(xi - xj))
     z = random.uniform(0,1)
     if z<=prob:
         return (1, min(round(prob, 3), 1))
@@ -197,9 +197,10 @@ def do_move_and_check_energy_and_accept_or_reject(geometry, dMin, dMax, T):
     
     tmpCurveVertices = geometry.curve_object.evaluate_curve_vertices(tmpGeometryData)
     deltaE, size_measures = geometry.evaluate_energy_difference(tmpCurveVertices) #if ThreadedBeads size_measures =  measures if Biarc size_measures = (measures, embedded_measures, length)    
+    deltaE = deltaE/geometry.curve_object.length
 
     #accept or reject energy if increased
-    (tmp_0or1, prob) = acceptOrReject(deltaE, T*geometry.curve_object.length)#calculate probability of achieving deltaE choose via random number generation
+    (tmp_0or1, prob) = acceptOrReject(deltaE, T)#calculate probability of achieving deltaE choose via random number generation
     if tmp_0or1==1:
         geometry.update_geometry(tmpGeometryData, tmpCurveVertices, size_measures)
             
