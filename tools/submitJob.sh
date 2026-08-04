@@ -1,10 +1,10 @@
 #!/bin/bash
 
-structure='circle36'
+#structure='circle36'
 #structure='circleTB' #label the directory with the edgelength line 37
 #structure='hopfLink40'
 #structure='trefoil50'
-#structure='openChain50_dl0_25'
+structure='openChain50_dl0_25'
 path_to_BIG_db="/HOME1/users/personal/coles/BIG_databases/"${structure}"_BIG.db"
 
 experimentID= # set to a queued id in BIG to claim it (overlapRatio/eta then come from BIG); leave blank for a fresh local run
@@ -13,13 +13,13 @@ overlapRatio=0.1
 eta=0.05
 alpha=0.0
 
-numberParallelProcesses=10
+numberParallelProcesses=12
 
 #annealing parameters for the decreasing temp part
-numberSecondsPerTemp=1200 #10800
-numberOfRounds=3
-T_top=0.1
-T_bot=0.001
+numberSecondsPerTemp=43200 #10800
+numberOfRounds=36
+T_top=0.02
+T_bot=0.002
 temp_options=(geometric linear temp_scan)
 temperature_description=${temp_options[1]}
 
@@ -31,7 +31,7 @@ initial_config_option="min-energy"   # "min-energy" | "last-frame-per-rank" | "m
 # optional: when claiming from BIG (experimentID set above), you can also start from specific
 # known curveIDs instead of the basic embedded structure. Leave static_curve_ids blank to use
 # the basic structure as before.
-static_curve_config_source="BIG"   # "local" or "BIG"
+static_curve_config_source="local"   # "local" or "BIG"
 static_curve_ids=""        # comma-separated curveIDs WITHOUT SPACES, e.g. "104,205,301" - blank reverts to basic structure
 
 
