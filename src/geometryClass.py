@@ -258,8 +258,8 @@ class TubularGeometry:
 
         f1, f2, f3, f4 = self.f1_f2_f3_f4 #f2 is already set as negative
 
-        #self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
-        self.coefficients = [round(1.0/pow(self.r_s, 3), 5), round((f2/f1)/pow(self.r_s, 2), 5), round((f3/f1)/self.r_s, 5), round((f4/f1), 5)]
+        self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
+        #self.coefficients = [round(1.0/pow(self.r_s, 3), 5), round((f2/f1)/pow(self.r_s, 2), 5), round((f3/f1)/self.r_s, 5), round((f4/f1), 5)]
         #print("WARNING still missing a factor 3/4pi or something")
         return None
 
@@ -273,8 +273,8 @@ class TubularGeometry:
 
         f1, f2, f3, f4 = self.f1_f2_f3_f4 #f2 is already set as negative
 
-        #self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
-        self.coefficients = [round(1.0/pow(self.r_s, 3), 5), round((f2/f1)/pow(self.r_s, 2), 5), round((f3/f1)/self.r_s, 5), round((f4/f1), 5)]
+        self.coefficients = [round(f1/pow(self.r_s, 3), 5), round(f2/pow(self.r_s, 2), 5), round(f3/self.r_s, 5), round(f4, 5)]
+        #self.coefficients = [round(1.0/pow(self.r_s, 3), 5), round((f2/f1)/pow(self.r_s, 2), 5), round((f3/f1)/self.r_s, 5), round((f4/f1), 5)]
         #print("WARNING still missing a factor 3/4pi or something")
         
         self.curve_object.edgeLength = edgeLengthValue

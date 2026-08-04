@@ -161,7 +161,7 @@ def swopOrNot(xj, Tj, xi, Ti):
     """
     Function: swopOrNot
     -------------------------------------------------------------------------------------------------------------------------------------------------------------
-    method returns a 0 or 1. P(return = 1) = P_T(X <= x) where P_T(X<=x) = min(1, exp((1/Ti - 1/Tj)*(xj - xi)))
+    method returns a 0 or 1. P(return = 1) = P_T(X <= x) where P_T(X<=x) = min(1, exp((1/Ti - 1/Tj)*(xi - xj)))
     x float (energy)
     T float (temp)
     Suppose Ti < Tj so that 1/Ti - 1/Tj > 0
@@ -171,7 +171,7 @@ def swopOrNot(xj, Tj, xi, Ti):
         --> xj should migrate to the lower temperature system
     return 0 or 1
     """
-    prob = np.exp((1/Ti - 1/Tj)*(xj - xi))
+    prob = np.exp((1/Ti - 1/Tj)*(xi - xj))
     z = random.uniform(0,1)
     if z<=prob:
         return (1, min(round(prob, 3), 1))
@@ -197,9 +197,10 @@ def do_move_and_check_energy_and_accept_or_reject(geometry, dMin, dMax, T):
     
     tmpCurveVertices = geometry.curve_object.evaluate_curve_vertices(tmpGeometryData)
     deltaE, size_measures = geometry.evaluate_energy_difference(tmpCurveVertices) #if ThreadedBeads size_measures =  measures if Biarc size_measures = (measures, embedded_measures, length)    
+    deltaE = deltaE/geometry.curve_object.length
 
     #accept or reject energy if increased
-    (tmp_0or1, prob) = acceptOrReject(deltaE, T*geometry.curve_object.length)#calculate probability of achieving deltaE choose via random number generation
+    (tmp_0or1, prob) = acceptOrReject(deltaE, T)#calculate probability of achieving deltaE choose via random number generation
     if tmp_0or1==1:
         geometry.update_geometry(tmpGeometryData, tmpCurveVertices, size_measures)
             
@@ -213,7 +214,8 @@ fileName = 'test_'+str(rank)
 frameNumber = 1
 
 structure = str(sys.argv[11])#this variable is passed to automatically title the jupyter notebook
-experimentID = int(sys.argv[-1])#updates BIG with the metadata used in experiment. 
+path_to_BIG_db = str(sys.argv[-1])#empty string means BIG is not being used this run
+experimentID = int(sys.argv[-2])#updates BIG with the metadata used in experiment.
 overlapRatio = float(sys.argv[1])
 eta = float(sys.argv[2])
 alpha = float(sys.argv[3])
@@ -335,7 +337,8 @@ if temperature_description != "temp_scan":
         print("\nexperiment ends in ", round(allgather_time*numberOfRounds/(60*60*24), 3), " days")
         writeData([size, overlapRatio, eta, geometry.R, geometry.r_s, geometry.input_R] + geometry.coefficients + [geoClass.countNumberOf(geometry.curve_object.curve_vertices), geometry.curve_object.edgeLength, T_bot, T_top, numberOfRounds, allgather_time, structure, alpha, time.time(), temperature_description, initial_configs], 'experimentData')
         writeData([str(temp_of_bin(k)) for k in range(size)], 'temperatures')
-        update_BIG_metadata_early(structure, experimentID, overlapRatio, eta, T_bot, T_top, temperature_description, numberOfRounds, allgather_time, initial_configs, size)
+        if path_to_BIG_db:
+            update_BIG_metadata_early(structure, experimentID, overlapRatio, eta, T_bot, T_top, temperature_description, numberOfRounds, allgather_time, initial_configs, size)
     
     start_time = time.time()
     writeData([it_no, T, 1, 0, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.curve_object.length, geometry.evaluate_normalised_energy(), frameNumber, 1.0, start_time, rank, allgather_data["bin_index"], rounds, it_no_] + list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), fileName)
@@ -429,7 +432,8 @@ if temperature_description=="temp_scan":
         print("\nexperiment ends in ", round(allgather_time*numberOfRounds/(60*60*24), 3), " days")
         writeData([size, overlapRatio, eta, geometry.R, geometry.r_s, geometry.input_R] + geometry.coefficients + [geoClass.countNumberOf(geometry.curve_object.curve_vertices), geometry.curve_object.edgeLength, T_bot, T_top, numberOfRounds, allgather_time, structure, alpha, time.time(), temperature_description, initial_configs], 'experimentData')
         writeData([str(temp_of_round(k)) for k in range(numberOfRounds)], 'temperatures')
-        update_BIG_metadata_early(structure, experimentID, overlapRatio, eta, T_bot, T_top, temperature_description, numberOfRounds, allgather_time, initial_configs, size)
+        if path_to_BIG_db:
+            update_BIG_metadata_early(structure, experimentID, overlapRatio, eta, T_bot, T_top, temperature_description, numberOfRounds, allgather_time, initial_configs, size)
 
     T = temp_of_round(rounds)
     start_time = time.time()
