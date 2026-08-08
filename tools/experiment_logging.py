@@ -181,9 +181,9 @@ def return_centered_polyFile_and_move_to_BIG_poly_dir(name, local_poly_path, cur
 
     return None
 
-def log_missing_polyFile(name, experimentID, curveID):
+def log_missing_polyFile(name, experimentID, local_poly_path, curveID):
     with open(BIG_DIR + name + f"_polyFile_{experimentID}_missing_curveIDs", "a") as f:
-        f.write(f"{curveID}\n")
+        f.write(f"{local_poly_path} -> BIG_curveID {curveID}\n")
     return None
 
 def delete_local_polyFile_archive(experimentID):
@@ -206,12 +206,16 @@ def move_data_to_BIG(name, experimentID, batch_size=100):
         return None
     local_min_curveID = row["min_energy_curve_id"]
 
+    #back up the local db before any destructive move/delete steps
+    DB_FILE = name + ".db"
+    shutil.copy2(DB_FILE, name + "_pre_move_backup.db")
+
     #unzip the polyFiles_{experimentID} folder and log error if missing
     zip_path = f"polyFiles_{experimentID}.zip"
     extract_dir = f"polyFiles_{experimentID}"
 
     if os.path.exists(zip_path):
-        shutil.unpack_archive(zip_path, extract_dir)
+        shutil.unpack_archive(zip_path, ".")
         status = "completed"
     else:
         print(f"polyFiles archive not found: {zip_path} - all poly files for this experiment are missing")
@@ -220,7 +224,6 @@ def move_data_to_BIG(name, experimentID, batch_size=100):
 
     add_tables_to_BIG_db(name)
 
-    DB_FILE = name + ".db"
     local_db = sqlite3.connect(DB_FILE)
     local_db.row_factory = sqlite3.Row
     local_cur = local_db.cursor()
@@ -281,7 +284,7 @@ def move_data_to_BIG(name, experimentID, batch_size=100):
                 if os.path.exists(local_poly_path):
                     return_centered_polyFile_and_move_to_BIG_poly_dir(name, local_poly_path, json.loads(curve['pointCoordinates']), BIG_curveID)
                 else:
-                    log_missing_polyFile(name, experimentID, BIG_curveID)
+                    log_missing_polyFile(name, experimentID, local_poly_path, BIG_curveID)
 
         BIG_db.commit()
 
