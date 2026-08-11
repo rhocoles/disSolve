@@ -5,7 +5,11 @@
 #structure='hopfLink40'
 #structure='trefoil50'
 structure='openChain50_dl0_25'
-path_to_BIG_db="/HOME1/users/personal/coles/BIG_databases/"${structure}"_BIG.db"
+path_to_BIG_db="/Users/harmon/Results/BIG_DIR/"${structure}"_BIG.db"
+if [ ! -f "$path_to_BIG_db" ]; then
+    echo "the variable path_to_BIG_db is none"
+    path_to_BIG_db=""
+fi
 
 experimentID= # set to a queued id in BIG to claim it (overlapRatio/eta then come from BIG); leave blank for a fresh local run
 
@@ -13,26 +17,23 @@ overlapRatio=0.1
 eta=0.05
 alpha=0.0
 
-numberParallelProcesses=12
+numberParallelProcesses=6
+
 
 #annealing parameters for the decreasing temp part
-numberSecondsPerTemp=43200 #10800
-numberOfRounds=36
-T_top=0.02
-T_bot=0.002
+numberSecondsPerTemp=1520
+numberOfRounds=8
+T_top=0.04
+T_bot=0.004
 temp_options=(geometric linear temp_scan)
-temperature_description=${temp_options[1]}
+temperature_description=${temp_options[0]}
 
-# initial curve configs: only used when experimentID is blank (a claimed-from-BIG job always
-# starts from the basic embedded structure); "source"/"option" match select_initial_curve_configs.py
-initial_config_source="BIG"   # "local" or "BIG"
-initial_config_option="min-energy"   # "min-energy" | "last-frame-per-rank" | "min-energy-per-rank"
 
-# optional: when claiming from BIG (experimentID set above), you can also start from specific
-# known curveIDs instead of the basic embedded structure. Leave static_curve_ids blank to use
-# the basic structure as before.
-static_curve_config_source="local"   # "local" or "BIG"
-static_curve_ids=""        # comma-separated curveIDs WITHOUT SPACES, e.g. "104,205,301" - blank reverts to basic structure
+# how the initial curve configuration is chosen - independent of whether an experimentID is being claimed from BIG
+basic_initial_curve=true   # true: use the basic embedded structure; false: use curve_config_source/curve_ids below
+
+curve_config_source="local"   # "local" or "BIG" - only used when basic_initial_curve=false
+curve_ids=""        # comma-separated curveIDs WITHOUT SPACES e.g. "104,205,301", OR one of "min-energy" | "last-frame-per-rank" | "min-energy-per-rank" - only used when basic_initial_curve=false
 
 
 
@@ -61,15 +62,13 @@ fi
 
 # check current director
 tools_dir=${PWD}
-src_dir="$(dirname "$tools_dir")/src"
-
-echo $tools_dir
-echo $src_dir
+src_dir=/Users/harmon/programming/disSolve/program/current/disSolve/src
 
 # first make an directory .../structure/gridPoint../
-LOCAL_TESTING_DIR=/LOCAL/coles/testing/
+LOCAL_TESTING_DIR=/Users/harmon/Results/local_experiments/
 dir=${LOCAL_TESTING_DIR}${structure}/${structure}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3}
 echo $dir
+echo 
 
 mkdir -p $dir
 cd $dir
@@ -81,21 +80,23 @@ rm -rf screenlog.0
 rm -rf data
 mkdir data
 
-
-# get the initial curve configurations either from BIG db or local db
-# claiming a specific BIG job always starts from the basic embedded structure, unless curveIDs from BIG/local are given;
-# otherwise curveIDs are determined via select_initial_curve_configs.py
-if [ -n "$experimentID" ]; then
-    if [ -n "$static_curve_ids" ]; then
-        curve_config_source=$static_curve_config_source
-        curve_config_ids=$static_curve_ids
-    else
-        curve_config_source=0
-        curve_config_ids=0
-    fi
+# get the initial curve configurations
+if [ "$basic_initial_curve" = true ]; then
+    curve_config_source=0
+    curve_config_ids=0
 else
-    curve_config_source=$initial_config_source
-    curve_config_ids=$(python3 ${tools_dir}/select_initial_curve_configs.py $structure --source $initial_config_source --option $initial_config_option --rs $overlapRatio --eta $eta)
+    if [ -z "$curve_config_source" ] || [ -z "$curve_ids" ]; then
+        echo "no static curve IDs set is this deliberate?"
+        exit
+    fi
+    case "$curve_ids" in
+        min-energy|last-frame-per-rank|min-energy-per-rank)
+            curve_config_ids=$(python3 ${tools_dir}/select_initial_curve_configs.py $structure --source $curve_config_source --option $curve_ids --rs $overlapRatio --eta $eta)
+            ;;
+        *)
+            curve_config_ids=$curve_ids
+            ;;
+    esac
 fi
 
 [ -f "${structure}.db" ] && cp ${structure}.db ${structure}"_prev_version.db"
@@ -119,7 +120,10 @@ cp ${tools_dir}/experiment_logging.py .
 #NOTE: if extra_args="--path_to_BIG_db $path_to_BIG_db" and path_to_BIG_db is empty the experimentID is generated from insertion into local db, BIG db is not updated
 #NOTE: if extra_args="--path_to_BIG_db $path_to_BIG_db" experimentID is generated from insertion into BIG db, local db is updated
 #NOTE: if extra_args="--experimentID $experimentID" experimentID is inserted into local db. this is not used here
-extra_args="--path_to_BIG_db $path_to_BIG_db"
+extra_args=""
+if [ -n "$path_to_BIG_db" ]; then
+    extra_args="--path_to_BIG_db $path_to_BIG_db"
+fi
 if [ -n "$experimentID" ]; then
     extra_args="$extra_args --experimentID $experimentID"
 fi
@@ -134,12 +138,12 @@ echo "Initialised experiment on $(hostname) with rs=$overlapRatio, eta=$eta, exp
 #screen -ls; echo "---"; ps aux | grep -iE 'main\.py|mpirun|prterun' | grep -v grep
 screenExperimentName=${structure:0:3}${structure: -2}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3}
 screen -S ${screenExperimentName} -L -d -m bash -lc "
-mpirun -np $numberParallelProcesses ~/miniconda3/bin/python3 main.py \
-$overlapRatio $eta $alpha $T_top $T_bot $temperature_description $numberSecondsPerTemp $numberOfRounds $curve_config_source $curve_config_ids $structure $experimentID
+mpirun -np $numberParallelProcesses python3.9 main.py \
+$overlapRatio $eta $alpha $T_top $T_bot $temperature_description $numberSecondsPerTemp $numberOfRounds $curve_config_source $curve_config_ids $structure $experimentID \"$path_to_BIG_db\"
 if [ \$? -ne 0 ]; then
     python3 ${tools_dir}/mark_experiment_failed.py $structure $experimentID
 else
-    python3 evaluate_experiment.py $structure
+    python3.9 evaluate_experiment.py $structure
 fi
 "
 
