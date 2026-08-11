@@ -173,9 +173,19 @@ def initialise_db(name, path_to_BIG_db=None, experimentID=None):
 
     elif experimentID is None and path_to_BIG_db:  #perform experiment with new experimentID generated from row insertion into BIG_db
 
+        if not os.path.exists(path_to_BIG_db):#if path_to_BIG_db is nonempty string this is type truthy but doesn't guarantee a file exists at the end of the path!
+            sys.exit(f"No BIG db found at {path_to_BIG_db}.")
+
+
         BIG_db = sqlite3.connect(path_to_BIG_db)
         BIG_db.row_factory = sqlite3.Row
         BIG_cur = BIG_db.cursor()
+
+        BIG_cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='_experiments'")
+        if BIG_cur.fetchone() is None:
+            BIG_db.close()
+            sys.exit(f"BIG db at {path_to_BIG_db} has no _experiments table. You likely need to delete ghost _BIG.db")
+
         BIG_cur.execute('''INSERT INTO _experiments (startDate, computerName, status) VALUES (?, ?, ?)''', (startDate, compy, "in progress"))
         experimentID = BIG_cur.lastrowid
         BIG_db.commit()
@@ -195,9 +205,16 @@ def initialise_db(name, path_to_BIG_db=None, experimentID=None):
             cur.execute('''INSERT INTO _experiments (id, startDate, computerName) VALUES (?, ?, ?)''', (experimentID, startDate, compy))
 
     else:#if experimentID exists in BIG_db, check experiment status, if queued update to inprogress and proceed, if not throw error. If experimentID does not exist in BIG_db, check if exists in local db. if not existing in local db insert new row into BIG db and proceed otherwise exit as above
+        if not os.path.exists(path_to_BIG_db):
+            sys.exit(f"No BIG db found at {path_to_BIG_db}.")
         BIG_db = sqlite3.connect(path_to_BIG_db)
         BIG_db.row_factory = sqlite3.Row
         BIG_cur = BIG_db.cursor()
+
+        BIG_cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='_experiments'")
+        if BIG_cur.fetchone() is None:
+            BIG_db.close()
+            sys.exit(f"BIG db at {path_to_BIG_db} has no _experiments table. You likely need to delete ghost _BIG.db")
 
         BIG_cur.execute("SELECT * FROM _experiments WHERE id = ?", (experimentID,))
         row = BIG_cur.fetchone()

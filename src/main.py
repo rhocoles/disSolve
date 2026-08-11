@@ -293,9 +293,9 @@ T_top = float(sys.argv[4])
 T_bot = float(sys.argv[5])
 temperature_description = str(sys.argv[6]) #geometric/linear/temp_scan (temp_scan divides temp interval linearly)
 if temperature_description == "geometric":
-    temp_of_bin = lambda i : round(T_bot*pow((T_top/T_bot), i/(size-1)), 6)
+    temp_of_bin = lambda i : round(T_bot*pow((T_top/T_bot), i/(size-1)), 8)
 elif temperature_description == "linear":
-    temp_of_bin = lambda i : round(T_bot + ((T_top - T_bot)/size)*i, 6)
+    temp_of_bin = lambda i : round(T_bot + ((T_top - T_bot)/size)*i, 8)
 
 #time between exchanging temperatures between systems
 allgather_time = int(sys.argv[7])#number secs computing between systems may be exchanged
@@ -360,7 +360,7 @@ if temperature_description != "temp_scan":
             frameNumber+=1
     
         if it_no%2000==0:
-            print("Info from rank", rank, "at bin ", allgather_data["bin_index"], " (E - E0)/L", round(geometry.evaluate_normalised_energy(),6), "T =", round(T,5), "acceptRatio", round(accept/it_no_, 3), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), frameNumber, " for round", rounds)
+            print("Info from rank", rank, "at bin ", allgather_data["bin_index"], " (E - E0)/L", round(geometry.evaluate_normalised_energy(),6), "T =", T, "acceptRatio", round(accept/it_no_, 3), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), frameNumber, " for round", rounds)
     
         if time.time() - start_time > allgather_time:
     
@@ -382,9 +382,9 @@ if temperature_description != "temp_scan":
                 if allgather_data["bin_index"]<(size - 1):#highest temperate bin swops only to lower temperature bins
                     rank_bin_index_right = [alldatas[i]["bin_index"] for i in range(size)].index(allgather_data["bin_index"] + 1)
                     tmpSwopOrNot, prob = swopOrNot(alldatas[rank_bin_index_right]["energy"], temp_of_bin(allgather_data["bin_index"] + 1), allgather_data["energy"], T)
-                    allgather_data["prob Ti --> Ti+1"] = prob #prob belongs to how the bin index became what it is at the s
-                    print(f"rank {rank} @bin {allgather_data['bin_index']} is engaged in swopping with {rank_bin_index_right} @bin {alldatas[rank_bin_index_right]['bin_index']}", "swopOrNot prob =", prob)
-                    comm.send((tmpSwopOrNot, prob), dest=rank_bin_index_right, tag=1)
+                    allgather_data["prob Ti --> Ti+1"] = prob #prob belongs to how the bin index became what it is at the 
+                    print(f"rank {rank} @bin {allgather_data['bin_index']} is engaged in swopping with {rank_bin_index_right} @bin {alldatas[rank_bin_index_right]['bin_index']}", "swopOrNot = {tmpSwopOrNot}  prob =", prob)
+                    comm.send((tmpSwopOrNot, prob), dest=rank_bin_index_right, tag=2)
                     if tmpSwopOrNot==1:
                         allgather_data["swop"]=1 
                         comm.send(allgather_data["bin_index"], dest=rank_bin_index_right, tag=1)
@@ -393,11 +393,10 @@ if temperature_description != "temp_scan":
                         print(f"{rank} has swopped temperature with {rank_bin_index_right}")
                     else:#send back the same
                         allgather_data["swop"]=0 
-                        comm.send(allgather_data["bin_index"] + 1, dest=rank_bin_index_right, tag=1)
             else:
                 if allgather_data["bin_index"] > 0: #lowest temperature bin swops only with higher temperatures i.e. bin 0 recieves no message
                     rank_bin_index_left = [alldatas[i]["bin_index"] for i in range(size)].index(allgather_data["bin_index"] - 1)
-                    tmpSwopOrNot, prob = comm.recv(source=rank_bin_index_left, tag=1)
+                    tmpSwopOrNot, prob = comm.recv(source=rank_bin_index_left, tag=2)
                     allgather_data["prob Ti --> Ti+1"] = prob
                     allgather_data["swop"] = tmpSwopOrNot
                     if tmpSwopOrNot:
@@ -416,6 +415,12 @@ if temperature_description != "temp_scan":
             accept=0
             rounds+=1
             start_time = time.time()
+
+            if rounds%20==0:
+                T_bot = 0.8*T_bot
+                T_top = 0.8*T_top
+                T = temp_of_bin(allgather_data["bin_index"])
+                print(rank, f": @bin_index {allgather_data['bin_index']} T_top = {T_top}, T_bot={T_bot} now annealing at T={T}")
 
 
 
