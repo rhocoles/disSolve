@@ -20,6 +20,9 @@ def get_local_experiment(name, experimentID):
 
 def get_BIG_experiment(name, experimentID):
     path_to_BIG_db = os.path.join(BIG_DIR, name + "_BIG.db")
+    if not os.path.exists(path_to_BIG_db):
+        print("No BIG db")
+        return None
     db = sqlite3.connect(path_to_BIG_db)
     db.row_factory = sqlite3.Row
     cur = db.cursor()
@@ -36,8 +39,16 @@ def update_BIG_metadata(name, experimentID, row, status, min_energy_curve_id=Non
     # min_energy_curve_id must be a BIG-side curveID (or None), never a local one
 
     path_to_BIG_db = os.path.join(BIG_DIR, name + "_BIG.db")
+    if not os.path.exists(path_to_BIG_db):
+        sys.exit(f"No BIG db found for {name} at {path_to_BIG_db}.")
+
     BIG_db = sqlite3.connect(path_to_BIG_db)
     cur = BIG_db.cursor()
+
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='_experiments'")
+    if cur.fetchone() is None:
+        BIG_db.close()
+        sys.exit(f"BIG db for {name} has no _experiments table.")
 
     cur.execute("SELECT id FROM _experiments WHERE id = ?", (experimentID,))
     exists = cur.fetchone()
@@ -199,6 +210,18 @@ def delete_local_polyFile_archive(experimentID):
     return None
     
 def move_data_to_BIG(name, experimentID, batch_size=100):
+    path_to_BIG_db = os.path.join(BIG_DIR, name + "_BIG.db")
+    if not os.path.exists(path_to_BIG_db):
+        sys.exit(f"No BIG db found for {name} at {path_to_BIG_db}. Run make_local_db_BIG first.")
+
+    BIG_db_check = sqlite3.connect(path_to_BIG_db)
+    cur_check = BIG_db_check.cursor()
+    cur_check.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='_experiments'")
+    table_exists = cur_check.fetchone() is not None
+    BIG_db_check.close()
+    if not table_exists:
+        sys.exit(f"BIG db for {name} has no _experiments table. You likely need to delete ghost _BIG.db")
+
     #check if experimentID determines an experiment in local directory
     row = get_local_experiment(name, experimentID)
     if row is None:
@@ -228,7 +251,6 @@ def move_data_to_BIG(name, experimentID, batch_size=100):
     local_db.row_factory = sqlite3.Row
     local_cur = local_db.cursor()
 
-    path_to_BIG_db = os.path.join(BIG_DIR, name + "_BIG.db")
     BIG_db = sqlite3.connect(path_to_BIG_db)
     BIG_db.row_factory = sqlite3.Row
     BIG_cur = BIG_db.cursor()
@@ -310,6 +332,53 @@ def move_data_to_BIG(name, experimentID, batch_size=100):
 
     return None
 
+def make_local_db_BIG(name, experimentID=None):
+    path_to_BIG_db = os.path.join(BIG_DIR, name + "_BIG.db")
+    if os.path.exists(path_to_BIG_db):
+        sys.exit(f"BIG db already exists at {path_to_BIG_db}. Delete it manually before running make_local_db_BIG.")
+
+    BIG_db = sqlite3.connect(path_to_BIG_db)
+    cur = BIG_db.cursor()
+    cur.execute('''
+        CREATE TABLE _experiments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rs REAL,
+            eta REAL,
+            status TEXT DEFAULT 'queued',
+            startDate TEXT,
+            completionDate TEXT,
+            prefactors TEXT NOT NULL DEFAULT '',
+            min_energy_normalised REAL,
+            min_energy_curve_id INTEGER,
+            size INTEGER,
+            computerName TEXT,
+            T_bot REAL,
+            T_top REAL,
+            temperature_description TEXT,
+            number_of_rounds INTEGER,
+            allgather_time REAL,
+            initial_curve_configs TEXT
+        )
+    ''')
+    BIG_db.commit()
+    BIG_db.close()
+
+    add_tables_to_BIG_db(name)
+
+    if experimentID is not None:
+        experimentIDs = [experimentID]
+    else:
+        local_db = sqlite3.connect(name + ".db")
+        cur = local_db.cursor()
+        cur.execute("SELECT id FROM _experiments")
+        experimentIDs = [row[0] for row in cur.fetchall()]
+        local_db.close()
+
+    for eid in experimentIDs:
+        move_data_to_BIG(name, eid)
+
+    return None
+
 def mark_as_completed_but_do_not_move(name, experimentID):
     row = get_local_experiment(name, experimentID)
     if row is None:
@@ -341,8 +410,19 @@ def delete_data_and_record(name, experimentID):
     delete_local_polyFile_archive(experimentID)
 
     path_to_BIG_db = os.path.join(BIG_DIR, name + "_BIG.db")
+    if not os.path.exists(path_to_BIG_db):
+        print(f"Deleted experiment {experimentID} from local db and polyFiles. No BIG db found for {name}.")
+        return None
+
     BIG_db = sqlite3.connect(path_to_BIG_db)
     cur = BIG_db.cursor()
+
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='_experiments'")
+    if cur.fetchone() is None:
+        BIG_db.close()
+        print(f"Deleted experiment {experimentID} from local db and polyFiles. BIG db for {name} has no _experiments table, likely ghost _BIG.db I would delete.")
+        return None
+
     cur.execute("DELETE FROM _experiments WHERE id = ?", (experimentID,))
     BIG_deleted = cur.rowcount > 0
     BIG_db.commit()

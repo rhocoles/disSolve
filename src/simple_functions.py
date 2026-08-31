@@ -236,8 +236,15 @@ def returnRandomUnitVector():
     return np.array
     """
     a = random.uniform(0, 6.283185307179586)
-    b = random.uniform(-1.5707963267948966, 1.5707963267948966)
-    return np.array([m.cos(a)*m.cos(b), m.sin(a)*m.cos(b), m.sin(b)])
+    #b = random.uniform(-1.5707963267948966, 1.5707963267948966) if you do it like this you bias the north an south poles and unsample the equator
+    #for a given b the area of the sphere that should be sampled is 2*m.pi*cos(b)db --> so you need to sample b proportional to cos(b) (the density of points around the equator is highest)
+    #if b = b(s) a monotonic function of s and f_s the density function that the density of b is f_b(b) = f_s(s(b)) *s'(b)
+    #we want ds/db = cos(b) --> s(b) = sin(b) --> b = sin^{-1}(s)
+    #sample s uniformly on [-1, 1] so that f_s = 1/2
+    #then f_b(b) = 1/2 cos(b) which is proportional to cos(b) as required
+    s = random.uniform(-1, 1)
+    b = m.asin(s)
+    return np.array([m.cos(a)*m.cos(b), m.sin(a)*m.cos(b), s])
 
 def returnRandomUnitVectorInCone(normalVector, openingAngle):
     """
@@ -247,9 +254,16 @@ def returnRandomUnitVectorInCone(normalVector, openingAngle):
     return np.array
     """
     openingAngle = min(openingAngle, 0.5*m.pi)
-    helpVector = returnRandomUnitVector()
-    h = random.uniform(0, m.sin(openingAngle))
-    return  h*(helpVector - np.dot(helpVector, normalVector)*normalVector)/m.sqrt(1 - np.dot(helpVector, normalVector)**2) + normalVector*m.sqrt(1 - h**2)
+    #helpVector = returnRandomUnitVector()
+    #h = random.uniform(0, m.sin(openingAngle))
+    #return  h*(helpVector - np.dot(helpVector, normalVector)*normalVector)/m.sqrt(1 - np.dot(helpVector, normalVector)**2) + normalVector*m.sqrt(1 - h**2)
+    #same as above, this over samples points in the direction of the normal vector. 
+    #in the below method the disk of radius h=sin(theta) is sample uniformly. theta must be sampled proportional to sin(theta)
+    
+    s = random.uniform(-1, -m.cos(openingAngle))
+    h = m.sin(m.acos(-s))
+    return returnRandomPointOnCircle(m.sqrt(1 - h**2)*normalVector, normalVector, h)
+    
 
 def returnRandomPointInIntersectionOfSphereCaps(c, r, c1, r1, c2, r2):
     """

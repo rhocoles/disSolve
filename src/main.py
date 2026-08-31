@@ -15,6 +15,10 @@ import socket
 import sqlite3
 import json
 
+from collections import deque
+last_energy_increasing_deltaE = deque([0], maxlen=5000)
+last_energy_increasing_prob = deque([1.0], maxlen=5000)
+
 import geometryClass as geoClass
 
 import pointFilaments
@@ -140,6 +144,9 @@ def writeData(dataList, fileName):
     f1.close()
     return None
 
+def expectation(values):
+    return sum(values) / len(values)
+
 def acceptOrReject(x, T):
     """
     Function: acceptOrReject
@@ -240,7 +247,8 @@ if initial_config_source in ("0", "") or initial_curve_ids_str in ("0", ""):
     initial_configs = str([0])
 else:
     initial_curve_ids = [int(x) for x in initial_curve_ids_str.split(",")]
-    my_curveID = initial_curve_ids[rank * len(initial_curve_ids) // size]
+    my_curveID = initial_curve_ids[rank%min(size, len(initial_curve_ids))]
+    print(f"rank: {rank} initialised with curveID {my_curveID}")
 
     db_path = os.path.join(BIG_DIR, structure + "_BIG.db") if initial_config_source == "BIG" else structure + ".db"
     db = sqlite3.connect(db_path)
@@ -302,7 +310,7 @@ allgather_time = int(sys.argv[7])#number secs computing between systems may be e
 numberOfRounds = int(sys.argv[8])
 
 dMin = 0.01*overlapRatio
-dMax = 2*overlapRatio + dMin
+dMax = overlapRatio + dMin
 if rank==0:
     print("(dMin, dMax) = ", (dMin, dMax))
 
@@ -346,21 +354,24 @@ if temperature_description != "temp_scan":
     frameNumber+=1
     while rounds < numberOfRounds:
         (tmp_0or1, prob, deltaE) = do_move_and_check_energy_and_accept_or_reject(geometry, dMin, dMax, T)
+        if deltaE>0:
+            last_energy_increasing_deltaE.append(deltaE)
+            last_energy_increasing_prob.append(prob)
         accept+=tmp_0or1
         it_no+=1
         it_no_+=1
     
         #save iteration data
-        if (it_no + accept)%2000==0:
+        if (it_no + 2*accept)%4000==0:
             geometry.evaluate_embedded_measures()
             geometry.evaluate_measures()
             geometry.evaluate_normalised_energy()
-            writeData([it_no, T, prob, deltaE, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.curve_object.length, geometry.evaluate_normalised_energy(), frameNumber, accept/it_no_, time.time(), rank, allgather_data["bin_index"], rounds, it_no_] + list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), fileName)
+            writeData([it_no, T, prob, deltaE, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.curve_object.length, geometry.evaluate_normalised_energy(), frameNumber, accept/it_no_, time.time(), rank, allgather_data["bin_index"], rounds, it_no_] + list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())) + [expectation(last_energy_increasing_deltaE), expectation(last_energy_increasing_prob)], fileName)
             geometry.curve_object.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
             frameNumber+=1
     
         if it_no%2000==0:
-            print("Info from rank", rank, "at bin ", allgather_data["bin_index"], " (E - E0)/L", round(geometry.evaluate_normalised_energy(),6), "T =", round(T,5), "acceptRatio", round(accept/it_no_, 3), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), frameNumber, " for round", rounds)
+            print("Info from rank", rank, "at bin ", allgather_data["bin_index"], " (E - E0)/L", round(geometry.evaluate_normalised_energy(),6), "T =", round(T,6), "acceptRatio", round(accept/it_no_, 3), "Exp(deltaE>0) = ", round(expectation(last_energy_increasing_deltaE), 6), "Exp(prob_deltaE>) =", round(expectation(last_energy_increasing_prob),3), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), frameNumber, " for round", rounds)
     
         if time.time() - start_time > allgather_time:
     
@@ -384,20 +395,19 @@ if temperature_description != "temp_scan":
                     tmpSwopOrNot, prob = swopOrNot(alldatas[rank_bin_index_right]["energy"], temp_of_bin(allgather_data["bin_index"] + 1), allgather_data["energy"], T)
                     allgather_data["prob Ti --> Ti+1"] = prob #prob belongs to how the bin index became what it is at the s
                     print(f"rank {rank} @bin {allgather_data['bin_index']} is engaged in swopping with {rank_bin_index_right} @bin {alldatas[rank_bin_index_right]['bin_index']}", "swopOrNot prob =", prob)
-                    comm.send((tmpSwopOrNot, prob), dest=rank_bin_index_right, tag=1)
+                    comm.send((tmpSwopOrNot, prob), dest=rank_bin_index_right, tag=2)
                     if tmpSwopOrNot==1:
                         allgather_data["swop"]=1 
                         comm.send(allgather_data["bin_index"], dest=rank_bin_index_right, tag=1)
                         allgather_data["bin_index"]+=1
                         T = temp_of_bin(allgather_data["bin_index"])
                         print(f"{rank} has swopped temperature with {rank_bin_index_right}")
-                    else:#send back the same
+                    else:
                         allgather_data["swop"]=0 
-                        comm.send(allgather_data["bin_index"] + 1, dest=rank_bin_index_right, tag=1)
             else:
                 if allgather_data["bin_index"] > 0: #lowest temperature bin swops only with higher temperatures i.e. bin 0 recieves no message
                     rank_bin_index_left = [alldatas[i]["bin_index"] for i in range(size)].index(allgather_data["bin_index"] - 1)
-                    tmpSwopOrNot, prob = comm.recv(source=rank_bin_index_left, tag=1)
+                    tmpSwopOrNot, prob = comm.recv(source=rank_bin_index_left, tag=2)
                     allgather_data["prob Ti --> Ti+1"] = prob
                     allgather_data["swop"] = tmpSwopOrNot
                     if tmpSwopOrNot:
@@ -442,21 +452,24 @@ if temperature_description=="temp_scan":
     frameNumber+=1
     while rounds < numberOfRounds:
         (tmp_0or1, prob, deltaE) = do_move_and_check_energy_and_accept_or_reject(geometry, dMin, dMax, T)
+        if deltaE>0:
+            last_energy_increasing_deltaE.append(deltaE)
+            last_energy_increasing_prob.append(prob)
         accept+=tmp_0or1
         it_no+=1
         it_no_+=1
     
         #save iteration data
-        if (it_no + accept)%1000==0:
+        if (it_no + 2*accept)%4000==0:
             geometry.evaluate_embedded_measures()
             geometry.evaluate_measures()
             geometry.evaluate_normalised_energy()
-            writeData([it_no, T, prob, deltaE, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.curve_object.length, geometry.evaluate_normalised_energy(), frameNumber,  accept/it_no, time.time(), rank, rank, rounds, it_no_] + list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), fileName)
+            writeData([it_no, T, prob, deltaE, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.curve_object.length, geometry.evaluate_normalised_energy(), frameNumber,  accept/it_no, time.time(), rank, rank, rounds, it_no_] + list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())) + [expectation(last_energy_increasing_deltaE), expectation(last_energy_increasing_prob)], fileName)
             geometry.curve_object.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
             frameNumber+=1
     
-        if it_no%1000==0:
-            print("Info from rank", rank, " (E - E0)/L", round(geometry.evaluate_normalised_energy(),6), "T =", round(T,8), "acceptRatio", round(accept/it_no, 3), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), frameNumber)
+        if it_no%2000==0:
+            print("Info from rank", rank, " (E - E0)/L", round(geometry.evaluate_normalised_energy(),6), "T =", round(T,6), "acceptRatio", round(accept/it_no_, 3), "Exp(deltaE>0) = ", round(expectation(last_energy_increasing_deltaE), 6), "Exp(prob_deltaE>) =", round(expectation(last_energy_increasing_prob),3), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), frameNumber, " for round", rounds)
     
         if time.time() - start_time > allgather_time:
     
