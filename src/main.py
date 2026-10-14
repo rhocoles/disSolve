@@ -1,3 +1,8 @@
+#iIn your repo, main.py needs three edits to match:
+#- Drop the evaluate_curve_vertices call.
+#- Call update_geometry(tmp_curve_data, size_measures).
+#- Delete the Biarc print at line 318, which would otherwise fail on geometryType.
+
 import numpy as np
 np.set_printoptions(legacy='1.21')
 import random
@@ -194,17 +199,17 @@ def do_move_and_check_energy_and_accept_or_reject(geometry, dMin, dMax, T):
     T positive float temperature
     """
 
-    moveReturn = geometry.curve_object.move(dMin=dMin, dMax=dMax)
+    moveReturn = geometry.move(dMin=dMin, dMax=dMax)
     if moveReturn == 1:#configuration jammed all processes should end
         print('jammed on rank'+str(rank))
-        geometry.curve_object.save_data('./','jammedGeometry')
+        geoClass.save_data(geometry.data, './','jammedGeometry')
         sys.exit()
     else:
         tmpGeometryData =  moveReturn
     
-    tmpCurveVertices = geometry.curve_object.evaluate_curve_vertices(tmpGeometryData)
+    tmpCurveVertices = geometry.evaluate_curve_vertices(tmpGeometryData)
     deltaE, size_measures = geometry.evaluate_energy_difference(tmpCurveVertices) #if ThreadedBeads size_measures =  measures if Biarc size_measures = (measures, embedded_measures, length)    
-    deltaE = deltaE/geometry.curve_object.length
+    deltaE = deltaE/geometry.length
 
     #accept or reject energy if increased
     (tmp_0or1, prob) = acceptOrReject(deltaE, T)#calculate probability of achieving deltaE choose via random number generation
@@ -262,7 +267,9 @@ else:
         initial_configs = json.dumps([0] + initial_curve_ids, separators=(',', ':'))
     else:
         initial_configs = json.dumps([1] + initial_curve_ids, separators=(',', ':'))
-geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(configType, curveData=curveData, edgeLength=edgeLength))
+#geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(configType, curveData=curveData, edgeLength=edgeLength))
+geoClass.ThickenedEquilateralPolygon.set_energy_parameters(edgeLength, overlapRatio, eta, alpha=alpha)
+geometry = (geoClass.OpenChain if configType else geoClass.ClosedChain)(curveData, edgeLength=edgeLength)
 
 #geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, fileName=pathToInitialConfig, edgeLength=0.25))
 #geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(0, curveData=pointFilaments.circle36_thBe_dl25, edgeLength=0.25))
@@ -283,15 +290,13 @@ geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.ThreadedBeads(co
 #geometry.set_uniform_tube_and_energy_specs_by_overriding_edgeLength(0.225)
 #geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.trefoil50Biarcs_56arcs, sphereDensity=4))
 #geometry.set_uniform_tube_and_energy_specs_by_overriding_edgeLength(0.226)
-#geometry.curve_object.rescale_geometry(40/39.68504)
+#geometry.rescale_geometry(40/39.68504)
 #geometry = geoClass.TubularGeometry(overlapRatio, eta, geoClass.Biarcs(curveData = biarcs.hopfLink40_44arcs, sphereDensity=4))
 #geometry.set_uniform_tube_and_energy_specs_by_overriding_edgeLength(0.22722)
 ################## END BIARCS
 
-#geoClass.makePointCloudPoly([pt for subList in geometry.curve_object.curve_vertices for pt in subList], fileLocation,'test_'+str(frameNumber))
-#geoClass.makeFilFile([pt for subList in geometry.curve_object.curve_vertices for pt in subList], 'trefoil40_'+str(frameNumber), geometry.input_R)
-geometry.evaluate_embedded_measures()
-geometry.evaluate_measures()
+#geoClass.makePointCloudPoly([pt for subList in geometry.curve_vertices for pt in subList], fileLocation,'test_'+str(frameNumber))
+#geoClass.makeFilFile([pt for subList in geometry.curve_vertices for pt in subList], 'trefoil40_'+str(frameNumber), geometry.input_R)
 
 
 #annealing schedule variables
@@ -315,15 +320,15 @@ if rank==0:
     print("(dMin, dMax) = ", (dMin, dMax))
 
 if rank ==0:
-    if geometry.curve_object.geometryType == "Biarc":
-        print("strand lengths ", list(map(lambda x: round(x, 5), geometry.curve_object.evaluate_curve_length(geometry.curve_object.data))))
-    print("curve is of ", len(geometry.curve_object.data), "strands and each strand has ", [len(geometry.curve_object.data[i]) for i in range(len(geometry.curve_object.data))])
-    print("edge length is fixed to ", geometry.curve_object.edgeLength)
+    if geometry.geometryType == "Biarc":
+        print("strand lengths ", list(map(lambda x: round(x, 5), geometry.evaluate_curve_length(geometry.data))))
+    print("curve is of ", len(geometry.data), "strands and each strand has ", [len(geometry.data[i]) for i in range(len(geometry.data))])
+    print("edge length is fixed to ", geometry.edgeLength)
     print("computing with ball radius ", geometry.input_R)
     print(geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0)
     print(geometry.V, geometry.A, geometry.C, geometry.X)
-    print("Initialised curve", rank, "of length", geometry.curve_object.length, "(E - E0)/L = ", geometry.evaluate_normalised_energy(), "(minRads, minSelfDist) = ", geometry.curve_object.check_reach())
-    print("(dMin, dMax) = ", dMin, dMax, "with", len(geometry.curve_object.index_intervals_to_be_rotated), "possible rotations")
+    print("Initialised curve", rank, "of length", geometry.length, "(E - E0)/L = ", geometry.evaluate_normalised_energy(), "(minRads, minSelfDist) = ", geometry.check_reach())
+    print("(dMin, dMax) = ", dMin, dMax, "with", len(geometry.index_intervals_to_be_rotated), "possible rotations")
     print("energy is set with coefficients", geometry.coefficients, " using ", geometry.f1_f2_f3_f4)
 
 it_no =0
@@ -343,14 +348,14 @@ if temperature_description != "temp_scan":
     if rank==0:
         print("annealing within temperature range [",T_bot, ",", T_top, "],  ", size, " systems are exchanged every ", allgather_time, "seconds,  over a total number of ", numberOfRounds, " rounds")
         print("\nexperiment ends in ", round(allgather_time*numberOfRounds/(60*60*24), 3), " days")
-        writeData([size, overlapRatio, eta, geometry.R, geometry.r_s, geometry.input_R] + geometry.coefficients + [geoClass.countNumberOf(geometry.curve_object.curve_vertices), geometry.curve_object.edgeLength, T_bot, T_top, numberOfRounds, allgather_time, structure, alpha, time.time(), temperature_description, initial_configs], 'experimentData')
+        writeData([size, overlapRatio, eta, geometry.R, geometry.r_s, geometry.input_R] + geometry.coefficients + [geoClass.countNumberOf(geometry.curve_vertices), geometry.edgeLength, T_bot, T_top, numberOfRounds, allgather_time, structure, alpha, time.time(), temperature_description, initial_configs], 'experimentData')
         writeData([str(temp_of_bin(k)) for k in range(size)], 'temperatures')
         if path_to_BIG_db:
             update_BIG_metadata_early(structure, experimentID, overlapRatio, eta, T_bot, T_top, temperature_description, numberOfRounds, allgather_time, initial_configs, size)
     
     start_time = time.time()
-    writeData([it_no, T, 1, 0, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.curve_object.length, geometry.evaluate_normalised_energy(), frameNumber, 1.0, start_time, rank, allgather_data["bin_index"], rounds, it_no_] + list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), fileName)
-    geometry.curve_object.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
+    writeData([it_no, T, 1, 0, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.length, geometry.evaluate_normalised_energy(), frameNumber, 1.0, start_time, rank, allgather_data["bin_index"], rounds, it_no_] + list(map(lambda x: round(x, 5), geometry.check_reach())), fileName)
+    geometry.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
     frameNumber+=1
     while rounds < numberOfRounds:
         (tmp_0or1, prob, deltaE) = do_move_and_check_energy_and_accept_or_reject(geometry, dMin, dMax, T)
@@ -366,12 +371,12 @@ if temperature_description != "temp_scan":
             geometry.evaluate_embedded_measures()
             geometry.evaluate_measures()
             geometry.evaluate_normalised_energy()
-            writeData([it_no, T, prob, deltaE, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.curve_object.length, geometry.evaluate_normalised_energy(), frameNumber, accept/it_no_, time.time(), rank, allgather_data["bin_index"], rounds, it_no_] + list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())) + [expectation(last_energy_increasing_deltaE), expectation(last_energy_increasing_prob)], fileName)
-            geometry.curve_object.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
+            writeData([it_no, T, prob, deltaE, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.length, geometry.evaluate_normalised_energy(), frameNumber, accept/it_no_, time.time(), rank, allgather_data["bin_index"], rounds, it_no_] + list(map(lambda x: round(x, 5), geometry.check_reach())) + [expectation(last_energy_increasing_deltaE), expectation(last_energy_increasing_prob)], fileName)
+            geometry.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
             frameNumber+=1
     
         if it_no%2000==0:
-            print("Info from rank", rank, "at bin ", allgather_data["bin_index"], " (E - E0)/L", round(geometry.evaluate_normalised_energy(),6), "T =", round(T,6), "acceptRatio", round(accept/it_no_, 3), "Exp(deltaE>0) = ", round(expectation(last_energy_increasing_deltaE), 6), "Exp(prob_deltaE>) =", round(expectation(last_energy_increasing_prob),3), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), frameNumber, " for round", rounds)
+            print("Info from rank", rank, "at bin ", allgather_data["bin_index"], " (E - E0)/L", round(geometry.evaluate_normalised_energy(),6), "T =", round(T,6), "acceptRatio", round(accept/it_no_, 3), "Exp(deltaE>0) = ", round(expectation(last_energy_increasing_deltaE), 6), "Exp(prob_deltaE>) =", round(expectation(last_energy_increasing_prob),3), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.check_reach())), frameNumber, " for round", rounds)
     
         if time.time() - start_time > allgather_time:
     
@@ -440,15 +445,15 @@ if temperature_description=="temp_scan":
     if rank==0:
         print("Annealing within temperature range [",T_bot, ",", T_top, "].\nTemperature interval is divided into ", numberOfRounds//2, " fixed temperatures, all ", size, " parallel systems anneal at the same fixed temperature. \nEach temperature is annealed for ", allgather_time, "seconds,  over a total number of ", numberOfRounds, "rounds (temperature interval is visited twice).")
         print("\nexperiment ends in ", round(allgather_time*numberOfRounds/(60*60*24), 3), " days")
-        writeData([size, overlapRatio, eta, geometry.R, geometry.r_s, geometry.input_R] + geometry.coefficients + [geoClass.countNumberOf(geometry.curve_object.curve_vertices), geometry.curve_object.edgeLength, T_bot, T_top, numberOfRounds, allgather_time, structure, alpha, time.time(), temperature_description, initial_configs], 'experimentData')
+        writeData([size, overlapRatio, eta, geometry.R, geometry.r_s, geometry.input_R] + geometry.coefficients + [geoClass.countNumberOf(geometry.curve_vertices), geometry.edgeLength, T_bot, T_top, numberOfRounds, allgather_time, structure, alpha, time.time(), temperature_description, initial_configs], 'experimentData')
         writeData([str(temp_of_round(k)) for k in range(numberOfRounds)], 'temperatures')
         if path_to_BIG_db:
             update_BIG_metadata_early(structure, experimentID, overlapRatio, eta, T_bot, T_top, temperature_description, numberOfRounds, allgather_time, initial_configs, size)
 
     T = temp_of_round(rounds)
     start_time = time.time()
-    writeData([it_no, T, 1, 0, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.curve_object.length, geometry.evaluate_normalised_energy(), frameNumber, 1.0, start_time, rank, rank, rounds, it_no_] + list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), fileName)
-    geometry.curve_object.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
+    writeData([it_no, T, 1, 0, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.length, geometry.evaluate_normalised_energy(), frameNumber, 1.0, start_time, rank, rank, rounds, it_no_] + list(map(lambda x: round(x, 5), geometry.check_reach())), fileName)
+    geometry.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
     frameNumber+=1
     while rounds < numberOfRounds:
         (tmp_0or1, prob, deltaE) = do_move_and_check_energy_and_accept_or_reject(geometry, dMin, dMax, T)
@@ -464,12 +469,12 @@ if temperature_description=="temp_scan":
             geometry.evaluate_embedded_measures()
             geometry.evaluate_measures()
             geometry.evaluate_normalised_energy()
-            writeData([it_no, T, prob, deltaE, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.curve_object.length, geometry.evaluate_normalised_energy(), frameNumber,  accept/it_no, time.time(), rank, rank, rounds, it_no_] + list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())) + [expectation(last_energy_increasing_deltaE), expectation(last_energy_increasing_prob)], fileName)
-            geometry.curve_object.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
+            writeData([it_no, T, prob, deltaE, geometry.V, geometry.A, geometry.C, geometry.X, geometry.V_0, geometry.A_0, geometry.C_0, geometry.X_0, geometry.length, geometry.evaluate_normalised_energy(), frameNumber,  accept/it_no, time.time(), rank, rank, rounds, it_no_] + list(map(lambda x: round(x, 5), geometry.check_reach())) + [expectation(last_energy_increasing_deltaE), expectation(last_energy_increasing_prob)], fileName)
+            geometry.make_curve_polyFile(fileLocation, polyFileName+str(frameNumber))
             frameNumber+=1
     
         if it_no%2000==0:
-            print("Info from rank", rank, " (E - E0)/L", round(geometry.evaluate_normalised_energy(),6), "T =", round(T,6), "acceptRatio", round(accept/it_no_, 3), "Exp(deltaE>0) = ", round(expectation(last_energy_increasing_deltaE), 6), "Exp(prob_deltaE>) =", round(expectation(last_energy_increasing_prob),3), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.curve_object.check_reach())), frameNumber, " for round", rounds)
+            print("Info from rank", rank, " (E - E0)/L", round(geometry.evaluate_normalised_energy(),6), "T =", round(T,6), "acceptRatio", round(accept/it_no_, 3), "Exp(deltaE>0) = ", round(expectation(last_energy_increasing_deltaE), 6), "Exp(prob_deltaE>) =", round(expectation(last_energy_increasing_prob),3), "(minRads, minSelfDist) = ", list(map(lambda x: round(x, 5), geometry.check_reach())), frameNumber, " for round", rounds)
     
         if time.time() - start_time > allgather_time:
     

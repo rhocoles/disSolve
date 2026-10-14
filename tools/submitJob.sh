@@ -5,7 +5,7 @@
 #structure='hopfLink40'
 #structure='trefoil50'
 structure='openChain50_dl0_25'
-path_to_BIG_db="/Users/harmon/Results/BIG_DIR/"${structure}"_BIG.db"
+#path_to_BIG_db="/Users/harmon/Results/BIG_DIR/"${structure}"_BIG.db"
 if [ ! -f "$path_to_BIG_db" ]; then
     echo "the variable path_to_BIG_db is none"
     path_to_BIG_db=""
@@ -17,7 +17,7 @@ overlapRatio=0.1
 eta=0.05
 alpha=0.0
 
-numberParallelProcesses=6
+numberParallelProcesses=5
 
 
 #annealing parameters for the decreasing temp part
@@ -30,10 +30,10 @@ temperature_description=${temp_options[0]}
 
 
 # how the initial curve configuration is chosen - independent of whether an experimentID is being claimed from BIG
-basic_initial_curve=true   # true: use the basic embedded structure; false: use curve_config_source/curve_ids below
+basic_initial_curve=false   # true: use the basic embedded structure; false: use curve_config_source/curve_ids below
 
 curve_config_source="local"   # "local" or "BIG" - only used when basic_initial_curve=false
-curve_ids=""        # comma-separated curveIDs WITHOUT SPACES e.g. "104,205,301", OR one of "min-energy" | "last-frame-per-rank" | "min-energy-per-rank" - only used when basic_initial_curve=false
+curve_ids="13205,33195,42084,42884"        # comma-separated curveIDs WITHOUT SPACES e.g. "104,205,301", OR one of "min-energy" | "last-frame-per-rank" | "min-energy-per-rank" - only used when basic_initial_curve=false
 
 
 
