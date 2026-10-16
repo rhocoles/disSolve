@@ -14,7 +14,7 @@ Deviations from a pure copy (all forced by the new structure):
     - OpenChain/ClosedChain.__init__ checks edgeLength against the class-level one
       (relative tolerance 0.01, sys.exit) and computes all measures at construction.
     - umbrella_sampling is stored but not yet used (NotImplementedError if set).
-    - __copy__ is the original, still broken, body (see PROMPT_MERGED.md).
+    - __copy__ was deleted (broken and never called).
 
 --> this is the verion from test_6 major updates are restructuring the file as outlined above and introducing the method move to the TEP class
 --> move then got an update, rotation is done via numpy in built functions, the stack of index_intervals_to_be_rotated is no longer shuffled but an interval is drawn at random. The curvature constraint is checked via a slightly conciser version.
@@ -78,10 +78,10 @@ def returnRandomUnitVectorInCone(normalVector, openingAngle):
     h = m.sin(m.acos(-s))
     return returnRandomPointOnCircle(m.sqrt(1 - h**2)*normalVector, normalVector, h)
 
-# (returnTurningAngleForControlTriangle is kept for reference; check_curvature_constraint now uses turning_angle_exceeds below)
+# (returnTurningAngleForControlTriangle is kept for reference; check_new_position_does_not_violate_curvature_constraint now uses turning_angle_exceeds below)
 def returnTurningAngleForControlTriangle(p0, p, p1):
     """
-    Function: returnCircleRadiusForControlTriangle
+    Function: returnCircleRadiusForTriangle
     --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     function returns the radii of the circular arc defined by the control triangle (p0, p, p1)
     p0,p, p1 three tuples
@@ -108,9 +108,9 @@ def turning_angle_exceeds(p0, p, p1, cosLimit):
     t1 = p1 - p
     return np.dot(t0, t1) < cosLimit*m.sqrt(np.dot(t0, t0)*np.dot(t1, t1))
 
-def returnCircleRadiusForControlTriangle(p0, p, p1):
+def returnCircleRadiusForTriangle(p0, p, p1):
     """
-    Function: returnCircleRadiusForControlTriangle
+    Function: returnCircleRadiusForTriangle
     --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     function returns the radii of the circular arc defined by the control triangle (p0, p, p1)
     p0,p, p1 three tuples
@@ -326,9 +326,9 @@ class ThickenedEquilateralPolygon:
     def set_radii(cls):
         """"Sets the input sphere radius used to evaluate the energy which depends on the edgeLength spacing of the curve"""
 
-        cls.R = round(m.sqrt(rTube + 0.25*cls.edgeLength**2), 5)
-        cls.r_s = round(m.sqrt(rTube + 0.25*cls.edgeLength**2)*cls.r_s_star, 5)
-        cls.input_R = round(m.sqrt(rTube + 0.25*cls.edgeLength**2)*(1 + cls.r_s_star), 5)
+        cls.R = round(m.sqrt(rTube**2 + 0.25*cls.edgeLength**2), 5)
+        cls.r_s = round(m.sqrt(rTube**2 + 0.25*cls.edgeLength**2)*cls.r_s_star, 5)
+        cls.input_R = round(m.sqrt(rTube**2 + 0.25*cls.edgeLength**2)*(1 + cls.r_s_star), 5)
 
         return None
 
@@ -345,6 +345,43 @@ class ThickenedEquilateralPolygon:
         return None
 
     # -- DROPPED: set_uniform_tube_and_energy_specs_by_overriding_edgeLength.
+
+    # One __init__ for every topology: it only calls methods (generate_index_intervals_to_be_rotated, compute_length, ...) and reads class attributes (configType, endCaps),
+    # which OpenChain / ClosedChain define themselves. self is the object being built, so Python finds the open or the closed version of each of them.
+    def __init__(self, curveData, edgeLength=0):
+
+        if len(curveData)==0:
+            print("You need to initialise the shape of the curve either from a .txt file or from a pointFilaments.pointListName")
+        else:
+            self.data = [[np.array(curveData[i][j]) for j in range(len(curveData[i]))] for i in range(len(curveData))]
+
+        self.length = sum(self.compute_length())
+        #returnLengthOfPointList(self.data, self.configType)
+
+        if edgeLength > 0:
+            self.edgeLength = edgeLength
+        else:
+            self.edgeLength = self.compute_average_edge_length()
+
+        # -- check this curve against the class-level edgeLength (energy parameters must be set first)
+        if not hasattr(ThickenedEquilateralPolygon, 'edgeLength'):
+            sys.exit("call ThickenedEquilateralPolygon.set_energy_parameters(...) before creating a curve")
+        if abs(self.compute_average_edge_length() - ThickenedEquilateralPolygon.edgeLength) > 0.01*ThickenedEquilateralPolygon.edgeLength:
+            sys.exit("edge length mismatch: expected " + str(ThickenedEquilateralPolygon.edgeLength) + " but measured average edge length " + str(self.compute_average_edge_length()))
+
+        self.deltaStar = self.compute_deltaStar(rTube, self.compute_average_edge_length())
+
+        self.skippedInteger = m.floor(0.5*m.pi/self.deltaStar)
+
+        self.upper_bound_closest_self_distance = self.compute_upper_bound_closest_self_distance(rTube, self.compute_average_edge_length())
+
+        nMax = int(0.5*min([len(self.data[i]) for i in range(len(self.data))]))
+
+        self.index_intervals_to_be_rotated = self.generate_index_intervals_to_be_rotated(nMax)
+
+        # -- compute all measures at construction
+        self.evaluate_embedded_measures()
+        self.evaluate_measures()
 
     def recenter_the_curve(self):
         """Curve is translated so that the centre of mass is at the origin"""
@@ -375,7 +412,7 @@ class ThickenedEquilateralPolygon:
         self.length = self.compute_length() #compute_length() to be updated and pushed into TEP
         return None
 
-    # -- PROMOTED from OpenChain/ClosedChain: one move() for every topology. What differs is in prev_point/next_point and check_curvature_constraint,
+    # -- PROMOTED from OpenChain/ClosedChain: one move() for every topology. What differs is in prev_point/next_point and prev_neighbour/next_neighbour,
     #    which each class defines for itself.
     def move(self, dMin = 0.0008, dMax=0.015):
         """a new position of the curve is evaluated close to the original position such that the reach of the curve is lower bounded by reach variable
@@ -410,6 +447,8 @@ class ThickenedEquilateralPolygon:
             # Called once per interval: the dummy is drawn once and used for every attempt on this interval.
             x0 = ind[0][2] if ind[0][1] == 'x' else 1
             x1 = ind[-1][2] if ind[-1][1] == 'x' else 1
+            index_v0 = None if ind[0][1] == 'x' else ind[0]      # index of the fixed end v0 / v1, None if it is a dummy
+            index_v1 = None if ind[-1][1] == 'x' else ind[-1]
             v0 = self.prev_point(ind[1][0], ind[1][1], x0)
             v1 = self.next_point(ind[-2][0], ind[-2][1], x1)
             rotationAxis = v1 - v0
@@ -450,8 +489,8 @@ class ThickenedEquilateralPolygon:
                     newPos = v0 + posVector*np.cos(a) + np.cross(rotationAxis, posVector)*np.sin(a) + np.outer(posVector @ rotationAxis, rotationAxis)*(1 - np.cos(a))
                     newPos = list(newPos)      # a list of the k new positions, the code below takes them from the front
 
-                    #check curvature constraint (open and closed chains differ here, see check_curvature_constraint)
-                    if not self.check_curvature_constraint(ind, newPos): #only uses the end positions of the chain. 
+                    #check curvature constraint at the two fixed ends v0, v1 (index None = dummy end, not tested)
+                    if not self.check_new_position_does_not_violate_curvature_constraint(newPos[0], index_v0, newPos[-1], index_v1):
                         continue
 
                     #check the overlapping arc condition if self.check_new_positions_do_not_cause_overlaps(self.upper_bound_closest_self_distance, newPos, ind):
@@ -460,13 +499,13 @@ class ThickenedEquilateralPolygon:
                         #return d, ind, newPos ---> Tidy: #update new positions to generate a neighbouring configuration
                         # a copy of the LISTS only (the outer list and every strand list are new), not of the numpy arrays: assigning into it below does not change self.data,
                         # which is only replaced by this data if the move is accepted (update_geometry). The arrays of the vertices that do not move are shared and never modified in place.
-                        tmpGeometryData = [list(strand) for strand in self.data]
+                        tmp_curve_data = [list(strand) for strand in self.data]
                         for (i,j) in ind[1:-1:]:
-                            tmpGeometryData[i][j]=newPos.pop(0)
-                        return tmpGeometryData
+                            tmp_curve_data[i][j]=newPos.pop(0)
+                        return tmp_curve_data
 
                 d_upperBound = 0.5*d_upperBound
-            
+
             numberOfTries+=1
 
         print("All Points Are Jammed!")
@@ -483,26 +522,34 @@ class ThickenedEquilateralPolygon:
         return (returnMinimumInNestedListOfFloats(self.generates_list_arc_radii()), min(self.generate_closest_distances(withInfo=withInfo)))
         #return (returnMinimumInNestedListOfFloats(self.generates_list_arc_radii()), min(self_dist.generate_closest_distances(self.data, self.configType, self.skippedInteger, withInfo=withInfo)))
 
-    def evaluate_curve_vertices(self, geometryData):
-        """Function returns the curve vertices corresponding to the data of the geometry object.
-           If the geometry type is ThreadedBeads (as it is the  case here) then the geometryData is the curve vertices.
-           For the biarc curve this is different.
-        """
-        return geometryData
-
     # -- former TubularGeometry methods that stay on TEP (zero branching).
+    def check_new_position_does_not_violate_curvature_constraint(self, v_0_adjacent, index_v0, v_1_adjacent, index_v1):
+        """True if the turning angle at the two FIXED ends v0, v1 of the rotated interval stays below 2*deltaStar.
+        v_0_adjacent / v_1_adjacent: new position of the rotated vertex next to v0 / v1 (newPos[0], newPos[-1]).
+        index_v0 / index_v1: (i, j) of v0 / v1, or None for a dummy end ('x' marker): that end is not tested.
+        An end is also not tested if v0 / v1 has no outer neighbour (first / last vertex of an open strand). The two ends are independent."""
+        cosLimit = m.cos(2*self.deltaStar)      # the turning angle exceeds 2*deltaStar exactly when cos(angle) < cos(2*deltaStar)
+        if index_v0 is not None:
+            before = self.prev_neighbour(*index_v0)
+            if before is not None and turning_angle_exceeds(before, self.data[index_v0[0]][index_v0[1]], v_0_adjacent, cosLimit):
+                return False
+        if index_v1 is not None:
+            after = self.next_neighbour(*index_v1)
+            if after is not None and turning_angle_exceeds(v_1_adjacent, self.data[index_v1[0]][index_v1[1]], after, cosLimit):
+                return False
+        return True
+
     def evaluate_normalised_energy(self):
         """Computes the normalised energy"""
 
         return np.dot(np.array(self.coefficients), np.array([self.V - self.V_0, self.A - self.A_0, self.C - self.C_0, self.X - self.X_0]))/self.length
 
-    # -- geometryType branch collapses: only the ThreadedBeads path survives.
-    #    The umbrella_sampling spring term is not implemented yet.
-    def evaluate_energy_difference(self, neighbouring_curve_vertices):
-        """Function computes the measures of the neighbouringCurveVertices with the radius input_R as associated to the class variable.
-           The energy of self is compared to the energy of a geeometry who's curve_object would produce the curve_vertices given by neighbouring_curve_vertices."""
+    # -- The umbrella_sampling spring term is not implemented yet.
+    def evaluate_energy_difference(self, tmp_curve_data):
+        """Function computes the measures of the neighbouring curve tmp_curve_data (the vertices, same structure as self.data) with the radius input_R as associated to the class variable.
+           The energy of self is compared to the energy of the geometry with the vertices tmp_curve_data."""
 
-        pointList = [pt for subList in neighbouring_curve_vertices for pt in subList]
+        pointList = [pt for subList in tmp_curve_data for pt in subList]
 
         measures = mm.morph_(pointList, self.input_R)
 
@@ -514,63 +561,87 @@ class ThickenedEquilateralPolygon:
 
         return (deltaE, measures)
 
+    # BACK-UP / REFERENCE ONLY: move() does NOT use this. It checks for overlaps with self_dist.check_new_positions_do_not_cause_overlaps (C++), which works with skippedInteger.
+    # This pure-Python version is kept to cross-check the C++ one by hand (same newPositions and indices, same answer).
+    # Same for open and closed chains: the topology enters only through self.arcPairs (evaluate_arc_pairs_to_be_checked), which lists the pairs of arcs to be checked.
+    def check_new_positions_do_not_cause_overlaps(self, upper_bound_closest_self_distance, newPositions, indices):
+        """Return True if the polygonal curve defined by self with the newPositions given at index locations indices, spheres separated by at least a skippedInteger are at least 2radius apart."""
 
-class OpenChain(ThickenedEquilateralPolygon):
+        # the pairs of arcs to be checked are only needed here (move() uses self_dist, which works with skippedInteger), so they are built on first use, not in __init__
+        if not hasattr(self, 'arcPairs'):
+            self.arcPairs = self.evaluate_arc_pairs_to_be_checked(self.skippedInteger)
 
-    configType = "open"
+        for ((i,j), (l,k)) in self.arcPairs:
+            if (i,j) in indices[1:-1:]:
+                if (l,k) in indices[1:-1:]:#both arc pairs belong to the rotated group
+                    continue
+                #check distance
+                p = newPositions[indices.index((i,j))-1] #indices[1:-1:].index((i,j)) = indices.index(i,j) - 1
+                q = self.data[l][k]
+                if np.linalg.norm(p - q)<upper_bound_closest_self_distance:
+                    return 0
+            elif (i,j) in [indices[0], indices[-1]]:#first pair belongs to a join arc, second pair to any arc
+                p = self.data[i][j]
+                if (l,k) in indices[1:-1:]:
+                    q = newPositions[indices.index((l,k))-1]
+                else:
+                    q = self.data[l][k]
+                if np.linalg.norm(p - q)<upper_bound_closest_self_distance:
+                    return 0
+            elif (l,k) in indices[1:-1:]:#first pair is unmoved, second pair rotated
+                p = np.array(self.data[i][j])
+                q = np.array(newPositions[indices.index((l,k))-1])
+                if np.linalg.norm(p - q)<upper_bound_closest_self_distance:
+                    return 0
+            # TODO (Lasso version): [indices[0], indices[1]] was probably meant to be [indices[0], indices[-1]] (second pair is the join arc at the far end). Left as is: this method is not called by move(), which uses self_dist.check_new_positions_do_not_cause_overlaps.
+            elif (l,k) in [indices[0], indices[1]]:#first pair is unmoved, second pair join
+                p = np.array(self.data[i][j])
+                q = np.array(self.data[l][k])
+                if np.linalg.norm(p - q)<upper_bound_closest_self_distance:
+                    return 0
+        return 1
 
-    def __init__(self, curveData, edgeLength=0):
+    def evaluate_embedded_measures(self):
+        """ Function computes the embedded measures and saves them as variables of the curve. endCaps is True for open and False for closed chains (class attribute)."""
 
-        self.geometryType = "ThreadedBeads"
+        self.V_0, self.A_0, self.C_0, self.X_0 = returnEmbeddedMeasures(self.data, self.input_R, endCaps=self.endCaps)
+        return None
 
-        if len(curveData)==0:
-            print("You need to initialise the shape of the curve either from a .txt file or from a pointFilaments.pointListName")
-        else:
-            self.data = [[np.array(curveData[i][j]) for j in range(len(curveData[i]))] for i in range(len(curveData))]
+    def evaluate_measures(self):
+        """Function computes the measures of the curveData point list with balls of radius input_R """
 
-        self.length = sum(self.compute_length())
-        #returnLengthOfPointList(self.curve_vertices, self.configType)
+        pointList = [pt for subList in self.data for pt in subList]
 
-        if edgeLength > 0:
-            self.edgeLength = edgeLength
-        else:
-            self.edgeLength = self.compute_average_edge_length()
+        self.V, self.A, self.C, self.X=mm.morph_(pointList, self.input_R)
 
-        # -- check this curve against the class-level edgeLength (energy parameters must be set first)
-        if not hasattr(ThickenedEquilateralPolygon, 'edgeLength'):
-            sys.exit("call ThickenedEquilateralPolygon.set_energy_parameters(...) before creating a curve")
-        if abs(self.compute_average_edge_length() - ThickenedEquilateralPolygon.edgeLength) > 0.01*ThickenedEquilateralPolygon.edgeLength:
-            sys.exit("edge length mismatch: expected " + str(ThickenedEquilateralPolygon.edgeLength) + " but measured average edge length " + str(self.compute_average_edge_length()))
+        return None
 
-        self.deltaStar = self.compute_deltaStar(rTube, self.compute_average_edge_length())
+    def update_geometry(self, curve_data, size_measures):
+        """updates self with attributes of geometry.
+           measures, embedded_measures = [], length
+        """
 
-        self.skippedInteger = m.floor(0.5*m.pi/self.deltaStar)
+        self.data = curve_data
 
-        self.arcPairs = self.evaluate_arc_pairs_to_be_checked(self.skippedInteger)
+        #measures = size_measures
+        self.V, self.A, self.C, self.X = size_measures
 
-        self.upper_bound_closest_self_distance = self.compute_upper_bound_closest_self_distance(rTube, self.compute_average_edge_length())
+        return None
 
-        nMax = int(0.5*min([len(self.data[i]) for i in range(len(self.data))]))
-
-        self.index_intervals_to_be_rotated = self.generate_index_intervals_to_be_rotated(nMax)
-
-        self.curve_vertices = self.evaluate_curve_vertices(self.data)
-
-        # -- compute all measures at construction
-        self.evaluate_embedded_measures()
-        self.evaluate_measures()
-
+    # The three methods below loop over the edges: the edge from vertex j to next_neighbour(i, j). An open strand has no edge after its last vertex
+    # (next_neighbour is None there); a closed strand has the closing edge (next_neighbour wraps around).
     def compute_average_edge_length(self):
         """computes the average of all edge lengths for each strand."""
 
         edgeTally = 0
         runningTotal = 0
         for i in range(len(self.data)):
-            j = 1
-            while j<len(self.data[i]):
-                runningTotal+=np.linalg.norm(self.data[i][j] - self.data[i][j-1])
+            for j in range(len(self.data[i])):
+                nxt = self.next_neighbour(i, j)
+                if nxt is None:
+                    continue
+                runningTotal+=np.linalg.norm(nxt - self.data[i][j])
                 edgeTally+=1
-                j+=1
         return round(runningTotal/float(edgeTally), 10)
 
     def compute_length(self):
@@ -579,10 +650,11 @@ class OpenChain(ThickenedEquilateralPolygon):
         result = []
         for i in range(len(self.data)):
             runningTotal = 0
-            j = 1
-            while j<len(self.data[i]):
-                runningTotal+=np.linalg.norm(self.data[i][j] - self.data[i][j-1])
-                j+=1
+            for j in range(len(self.data[i])):
+                nxt = self.next_neighbour(i, j)
+                if nxt is None:
+                    continue
+                runningTotal+=np.linalg.norm(nxt - self.data[i][j])
             result.append(runningTotal)
         return result
 
@@ -592,18 +664,117 @@ class OpenChain(ThickenedEquilateralPolygon):
         dlMax = 0
         dlMin = 10
         for i in range(len(self.data)):
-            j = 1
-            while j<len(self.data[i]):
-                tmpFloat=np.linalg.norm(self.data[i][j] - self.data[i][j-1])
-                #print(tmpFloat)
+            for j in range(len(self.data[i])):
+                nxt = self.next_neighbour(i, j)
+                if nxt is None:
+                    continue
+                tmpFloat=np.linalg.norm(nxt - self.data[i][j])
                 if tmpFloat>dlMax:
                     dlMax = tmpFloat
                 if tmpFloat<dlMin:
                     dlMin = tmpFloat
-                j+=1
         print(dlMin,'< dl <', dlMax)
         return None
 
+    def generates_list_arc_radii(self):
+        """Creates list floats. Each float gives the radius of the arc defined by the bezier triangle at that index.
+        A vertex without both neighbours (the ends of an open strand) has no arc and is skipped."""
+        result = []
+        for i in range(len(self.data)):
+            strand = []
+            for j in range(len(self.data[i])):
+                p0 = self.prev_neighbour(i, j)
+                p1 = self.next_neighbour(i, j)
+                if p0 is None or p1 is None:
+                    continue
+                strand.append(returnCircleRadiusForTriangle(p0, self.data[i][j], p1))
+            result.append(strand)
+        return result
+
+    def make_curve_polyFile(self, fileLocation, fileName):
+        """Set of concatenated data points is written as a .poly file to be read with Houdini"""
+
+        r=str(round(204.0/255.0, 3))
+        g=str(round(12.0/255.0, 3))
+        b=str(round(204.0/255.0, 3))
+
+        r_1=str(round(14.0/255.0, 3))
+        g_1=str(round(120.0/255.0, 3))
+        b_1=str(round(204.0/255.0, 3))
+
+        point_count = 1
+        f1 = open(str(fileLocation)+str(fileName)+".poly", "w")
+        f1.write('POINTS''\n')
+        for i in range(len(self.data)):
+            for j in range(len(self.data[i])):
+                if point_count%2==0:
+                    f1.write(str(point_count)+': '+str(dec.Decimal(str(round(self.data[i][j][0],5))))+' '+str(dec.Decimal(str(round(self.data[i][j][1],5))))+' '+str(dec.Decimal(str(round(self.data[i][j][2],5))))+' c('+r+','+g+','+b+',1.0)'+'\n')
+                else:
+                    f1.write(str(point_count)+': '+str(dec.Decimal(str(round(self.data[i][j][0],5))))+' '+str(dec.Decimal(str(round(self.data[i][j][1],5))))+' '+str(dec.Decimal(str(round(self.data[i][j][2],5))))+' c('+r_1+','+g_1+','+b_1+',1.0)'+'\n')
+                point_count = point_count + 1
+
+        point_count = 1
+        poly_count = 1
+        f1.write('POLYS')
+        for i in range(len(self.data)):
+            f1.write('\n'+str(poly_count)+': ')
+            for j in range(len(self.data[i])):
+                f1.write(str(point_count)+' ')
+                point_count+=1
+            if self.next_neighbour(i, len(self.data[i]) - 1) is not None:      # the last vertex has a next neighbour (the first one) only if the strand is closed: houdini needs that first point repeated at the end of the POLY to draw the closing edge
+                f1.write(str(point_count - len(self.data[i])))
+            poly_count+=1
+
+        f1.write('\nEND')
+        f1.close()
+
+    def is_arc_adjacent(self, i, j, l, k):
+        """True if (i,j) and (l,k) are on the same strand and closer than skippedInteger steps along it: |j-k| for an open strand, also around the loop for a closed one."""
+        if i != l:
+            return False
+        d = abs(j - k)
+        if self.configType == 'open':
+            return d < self.skippedInteger
+        return min(d, len(self.data[i]) - d) < self.skippedInteger
+
+    def generate_closest_distances(self, withInfo = False):
+        """Creates list of floats. Each float is the closest to another point on the polygonal curve separtaed by at least a skipped integer."""
+
+        if withInfo:
+            print('\n')
+        result = []
+        tmpList = []
+        for i in range(len(self.data)):
+            for j in range(len(self.data[i])):
+                d = 1000.0
+                ind = (0,0)
+                for l in range(i, len(self.data)):
+                    stInd = j if l==i else 0
+                    for k in range(stInd, len(self.data[l])):
+                        if self.is_arc_adjacent(i, j, l, k):
+                            continue
+                        dtmp = np.linalg.norm(self.data[i][j] - self.data[l][k])
+                        if dtmp<d:
+                            d = dtmp
+                            ind = (l,k)
+                    if d<1000.0:
+                        tmpList.append([(i,j), ind, d])
+                result.append(d)
+        if withInfo:
+            tmpList.sort(key=lambda x:x[2])
+            for data in tmpList:
+                print(data)
+            print('\n')
+        return result
+
+
+class OpenChain(ThickenedEquilateralPolygon):
+
+    configType = "open"
+    closed = False      # no edge from the last vertex back to the first
+    endCaps = True      # an open strand has end caps (spherical caps at both ends) in the embedded measures
+
+    # Only called (once, on first use) by the Python check_new_positions_do_not_cause_overlaps above, i.e. only for the by-hand cross-check of the C++ overlap check.
     def evaluate_arc_pairs_to_be_checked(self, skippedInteger):
         """appends an integer pair ((i,j), (l,k)) to the list arcpairs if the corresponding arcs have an arc length separation of at least pi."""
 
@@ -635,38 +806,6 @@ class OpenChain(ThickenedEquilateralPolygon):
 
     # -- kept per your call, NOT dead code: a Python-level prototype for
     #    developing overlap-check logic before porting to the C++ library.
-    def check_new_positions_do_not_cause_overlaps(self, upper_bound_closest_self_distance, newPositions, indices):
-        """Return True if the polygonal curve defined by self with the newPositions given at index locations indices, spheres separated by at least a skippedInteger are at least 2radius apart."""
-
-        for ((i,j), (l,k)) in self.arcPairs:
-            if (i,j) in indices[1:-1:]:
-                if (l,k) in indices[1:-1:]:#both arc pairs belong to the rotated group
-                    continue
-                #check distance
-                p = newPositions[indices.index((i,j))-1] #indices[1:-1:].index((i,j)) = indices.index(i,j) - 1
-                q = self.data[l][k]
-                if np.linalg.norm(p - q)<upper_bound_closest_self_distance:
-                    return 0
-            elif (i,j) in [indices[0], indices[-1]]:#first pair belongs to a join arc, second pair to any arc
-                p = self.data[i][j]
-                if (l,k) in indices[1:-1:]:
-                    q = newPositions[indices.index((l,k))-1]
-                else:
-                    q = self.data[l][k]
-                if np.linalg.norm(p - q)<upper_bound_closest_self_distance:
-                    return 0
-            elif (l,k) in indices[1:-1:]:#first pair is unmoved, second pair rotated
-                p = np.array(self.data[i][j])
-                q = np.array(newPositions[indices.index((l,k))-1])
-                if np.linalg.norm(p - q)<upper_bound_closest_self_distance:
-                    return 0
-            elif (l,k) in [indices[0], indices[1]]:#first pair is unmoved, second pair join
-                p = np.array(self.data[i][j])
-                q = np.array(self.data[l][k])
-                if np.linalg.norm(p - q)<upper_bound_closest_self_distance:
-                    return 0
-        return 1
-
     def generate_index_intervals_to_be_rotated(self, Nmax):
         """ generates a list of index intervals, this list is shuffled and an interval list is drawn at random. if the curve is open intervals containing the end vertices to be extended with a dummy vertex are included"""
 
@@ -715,244 +854,24 @@ class OpenChain(ThickenedEquilateralPolygon):
             return self.data[i][-1] + x*e*randomUnitVectorInCone
         return self.data[i][j+1]
 
-    def check_curvature_constraint(self, ind, newPos):
-        """True if the turning angle at both ends of the rotated interval stays below 2*deltaStar. An end vertex of the chain (or a dummy 'x' end) is not tested."""
-        cosLimit = m.cos(2*self.deltaStar)      # the turning angle exceeds 2*deltaStar exactly when cos(angle) < cos(2*deltaStar)
-        if (ind[0][1] not in  ['x', 0]):#start vertex is not an interior vertex if ind[0][1] = 'x' or 0 and is never n-1
-            if turning_angle_exceeds(self.prev_point(ind[0][0], ind[0][1]), self.data[ind[0][0]][ind[0][1]], newPos[0], cosLimit):
-                return False
-        if (ind[-1][1] not in ['x', (len(self.data[ind[-1][0]])-1)]):#last vertex is the beginning vertex of the chain
-            if turning_angle_exceeds(newPos[-1], self.data[ind[-1][0]][ind[-1][1]], self.next_point(ind[-1][0], ind[-1][1]), cosLimit):
-                return False
-        return True
-
     # -- needs the end points to make the polyFile image correctly.
-    def make_curve_polyFile(self, fileLocation, fileName):
-        """Set of concatenated data points is written as a .poly file to be read with Houdini"""
+    def prev_neighbour(self, i, j):
+        """Data(i, j-1), or None for the first vertex of an open strand (no neighbour, nothing to test)."""
+        return self.data[i][j-1] if j > 0 else None
 
-        r=str(round(204.0/255.0, 3))
-        g=str(round(12.0/255.0, 3))
-        b=str(round(204.0/255.0, 3))
-
-        r_1=str(round(14.0/255.0, 3))
-        g_1=str(round(120.0/255.0, 3))
-        b_1=str(round(204.0/255.0, 3))
-
-        point_count = 1
-        f1 = open(str(fileLocation)+str(fileName)+".poly", "w")
-        f1.write('POINTS''\n')
-        for i in range(len(self.data)):
-            for j in range(len(self.data[i])):
-                if point_count%2==0:
-                    f1.write(str(point_count)+': '+str(dec.Decimal(str(round(self.data[i][j][0],5))))+' '+str(dec.Decimal(str(round(self.data[i][j][1],5))))+' '+str(dec.Decimal(str(round(self.data[i][j][2],5))))+' c('+r+','+g+','+b+',1.0)'+'\n')
-                else:
-                    f1.write(str(point_count)+': '+str(dec.Decimal(str(round(self.data[i][j][0],5))))+' '+str(dec.Decimal(str(round(self.data[i][j][1],5))))+' '+str(dec.Decimal(str(round(self.data[i][j][2],5))))+' c('+r_1+','+g_1+','+b_1+',1.0)'+'\n')
-                point_count = point_count + 1
-
-        point_count = 1
-        poly_count = 1
-        f1.write('POLYS')
-        for i in range(len(self.data)):
-            f1.write('\n'+str(poly_count)+': ')
-            for j in range(len(self.data[i])):
-                f1.write(str(point_count)+' ')
-                point_count+=1
-            poly_count+=1
-
-        f1.write('\nEND')
-        f1.close()
-
-    # -- needs the end points (open trims the first/last index, no wraparound neighbor).
-    def generates_list_arc_radii(self):
-        """Creates list floats. Each float gives the radius of the arc defined by the bezier triangle at that index."""
-        result = []
-        for i in range(len(self.data)):
-            strand = []
-            for j in range(1, len(self.data[i])-1):
-                p0 = self.data[i][j-1]
-                p = self.data[i][j]
-                p1 = self.data[i][j+1]
-                strand.append(returnCircleRadiusForControlTriangle(p0, p, p1))
-            result.append(strand)
-        return result
-
-    def generate_closest_distances(self, withInfo = False):
-        """Creates list of floats. Each float is the closest to another point on the polygonal curve separtaed by at least a skipped integer."""
-
-        if withInfo:
-            print('\n')
-        result = []
-        tmpList = []
-        for i in range(len(self.data)):
-            #skippedInteger = int(0.5*m.pi/np.arcsin(0.5*self.edgeLength/self.R))
-            #print(skippedInteger)
-            for j in range(len(self.data[i])):
-                d = 1000.0
-                ind = (0,0)
-                for l in range(i, len(self.data)):
-                    stInd = j if l==i else 0
-                    for k in range(stInd, len(self.data[l])):
-                        if l==i and (k - j < self.skippedInteger):
-                            #print('for', (i,j), 'skipping ', (l,k))
-                            continue
-                        dtmp = np.linalg.norm(self.data[i][j] - self.data[l][k])
-                        if dtmp<d:
-                            d = dtmp
-                            ind = (l,k)
-                    if d<1000.0:
-                        tmpList.append([(i,j), ind, d])
-                result.append(d)
-        if withInfo:
-            tmpList.sort(key=lambda x:x[2])
-            for data in tmpList:
-                print(data)
-            print('\n')
-        return result
-
-    # -- from TubularGeometry. Branched on configType (endCaps) in the original;
-    #    open version uses endCaps=True.
-    def evaluate_embedded_measures(self):
-        """ Function computes the embedded measures and saves them as variables of the curve"""
-
-        endCaps=True
-
-        self.V_0, self.A_0, self.C_0, self.X_0 = returnEmbeddedMeasures(self.curve_vertices, self.input_R, endCaps=endCaps)
-        return None
-
-    # -- from TubularGeometry. Relies on curve_vertices flattening to the sphere centres.
-    def evaluate_measures(self):
-        """Function computes the measures of the curveData point list with balls of radius input_R """
-
-        pointList = [pt for subList in self.curve_vertices for pt in subList]
-
-        self.V, self.A, self.C, self.X=mm.morph_(pointList, self.input_R)
-
-        return None
-
-    # -- from TubularGeometry. Updates the INSTANCE state; Biarcs branch dropped.
-    def update_geometry(self, data, curve_vertices, size_measures):
-        """updates self with attributes of geometry.
-           measures, embedded_measures = [], length
-        """
-
-        self.data = data
-        self.curve_vertices = curve_vertices
-
-        #measures = size_measures
-        self.V, self.A, self.C, self.X = size_measures
-
-        return None
-
-    # -- copies an INSTANCE of a specific object; TEP never has instances.
-    #    (original body, still broken: type(self)() needs curveData)
-    def __copy__(self):
-        """Returns a copy of the object and a number of variables."""
-
-        newone = type(self)()
-        for item in ['configType', 'other object attributes to pass over to new instance', 'etc']:
-            newone.__dict__[item] = self.__dict__[item]
-        return newone
+    def next_neighbour(self, i, j):
+        """Data(i, j+1), or None for the last vertex of an open strand (no neighbour, nothing to test)."""
+        return self.data[i][j+1] if j < len(self.data[i]) - 1 else None
 
 
 # -- same shape as OpenChain throughout; configType="closed".
 class ClosedChain(ThickenedEquilateralPolygon):
 
     configType = "closed"
+    closed = True       # every strand has the closing edge from the last vertex back to the first
+    endCaps = False     # a closed strand is a torus: no end caps, X_0 = 0
 
-    def __init__(self, curveData, edgeLength=0):
-
-        self.geometryType = "ThreadedBeads"
-
-        if len(curveData)==0:
-            print("You need to initialise the shape of the curve either from a .txt file or from a pointFilaments.pointListName")
-        else:
-            self.data = [[np.array(curveData[i][j]) for j in range(len(curveData[i]))] for i in range(len(curveData))]
-
-        self.length = sum(self.compute_length())
-        #returnLengthOfPointList(self.curve_vertices, self.configType)
-
-        if edgeLength > 0:
-            self.edgeLength = edgeLength
-        else:
-            self.edgeLength = self.compute_average_edge_length()
-
-        # -- check this curve against the class-level edgeLength (energy parameters must be set first)
-        if not hasattr(ThickenedEquilateralPolygon, 'edgeLength'):
-            sys.exit("call ThickenedEquilateralPolygon.set_energy_parameters(...) before creating a curve")
-        if abs(self.compute_average_edge_length() - ThickenedEquilateralPolygon.edgeLength) > 0.01*ThickenedEquilateralPolygon.edgeLength:
-            sys.exit("edge length mismatch: expected " + str(ThickenedEquilateralPolygon.edgeLength) + " but measured average edge length " + str(self.compute_average_edge_length()))
-
-        self.deltaStar = self.compute_deltaStar(rTube, self.compute_average_edge_length())
-
-        self.skippedInteger = m.floor(0.5*m.pi/self.deltaStar)
-
-        self.arcPairs = self.evaluate_arc_pairs_to_be_checked(self.skippedInteger)
-
-        self.upper_bound_closest_self_distance = self.compute_upper_bound_closest_self_distance(rTube, self.compute_average_edge_length())
-
-        nMax = int(0.5*min([len(self.data[i]) for i in range(len(self.data))]))
-
-        self.index_intervals_to_be_rotated = self.generate_index_intervals_to_be_rotated(nMax)
-
-        self.curve_vertices = self.evaluate_curve_vertices(self.data)
-
-        # -- compute all measures at construction
-        self.evaluate_embedded_measures()
-        self.evaluate_measures()
-
-    def compute_average_edge_length(self):
-        """computes the average of all edge lengths for each strand."""
-
-        edgeTally = 0
-        runningTotal = 0
-        for i in range(len(self.data)):
-            j = 1
-            while j<len(self.data[i]):
-                runningTotal+=np.linalg.norm(self.data[i][j] - self.data[i][j-1])
-                edgeTally+=1
-                j+=1
-            runningTotal+=np.linalg.norm(self.data[i][0] - self.data[i][-1])
-            edgeTally+=1
-        return round(runningTotal/float(edgeTally), 10)
-
-    def compute_length(self):
-        """Sums the length of each edge and saves in the variable length."""
-
-        result = []
-        for i in range(len(self.data)):
-            runningTotal = 0
-            j = 1
-            while j<len(self.data[i]):
-                runningTotal+=np.linalg.norm(self.data[i][j] - self.data[i][j-1])
-                j+=1
-            runningTotal+=np.linalg.norm(self.data[i][-1] - self.data[i][0])
-            result.append(runningTotal)
-        return result
-
-    def check_equal_edges(self):
-        """Prints the smallest and largest edge to screen."""
-
-        dlMax = 0
-        dlMin = 10
-        for i in range(len(self.data)):
-            j = 1
-            while j<len(self.data[i]):
-                tmpFloat=np.linalg.norm(self.data[i][j] - self.data[i][j-1])
-                #print(tmpFloat)
-                if tmpFloat>dlMax:
-                    dlMax = tmpFloat
-                if tmpFloat<dlMin:
-                    dlMin = tmpFloat
-                j+=1
-            tmpFloat=np.linalg.norm(self.data[i][0] - self.data[i][-1])
-            #print(tmpFloat)
-            if tmpFloat>dlMax:
-                dlMax = tmpFloat
-            if tmpFloat<dlMin:
-                dlMin = tmpFloat
-        print(dlMin,'< dl <', dlMax)
-        return None
-
+    # Only called (once, on first use) by the Python check_new_positions_do_not_cause_overlaps above, i.e. only for the by-hand cross-check of the C++ overlap check.
     def evaluate_arc_pairs_to_be_checked(self, skippedInteger):
         """appends an integer pair ((i,j), (l,k)) to the list arcpairs if the corresponding arcs have an arc length separation of at least pi."""
 
@@ -981,38 +900,6 @@ class ClosedChain(ThickenedEquilateralPolygon):
                         tmpList.append(((i,j), (l,k)))
         return tmpList
 
-    def check_new_positions_do_not_cause_overlaps(self, upper_bound_closest_self_distance, newPositions, indices):
-        """Return True if the polygonal curve defined by self with the newPositions given at index locations indices, spheres separated by at least a skippedInteger are at least 2radius apart."""
-
-        for ((i,j), (l,k)) in self.arcPairs:
-            if (i,j) in indices[1:-1:]:
-                if (l,k) in indices[1:-1:]:#both arc pairs belong to the rotated group
-                    continue
-                #check distance
-                p = newPositions[indices.index((i,j))-1] #indices[1:-1:].index((i,j)) = indices.index(i,j) - 1
-                q = self.data[l][k]
-                if np.linalg.norm(p - q)<upper_bound_closest_self_distance:
-                    return 0
-            elif (i,j) in [indices[0], indices[-1]]:#first pair belongs to a join arc, second pair to any arc
-                p = self.data[i][j]
-                if (l,k) in indices[1:-1:]:
-                    q = newPositions[indices.index((l,k))-1]
-                else:
-                    q = self.data[l][k]
-                if np.linalg.norm(p - q)<upper_bound_closest_self_distance:
-                    return 0
-            elif (l,k) in indices[1:-1:]:#first pair is unmoved, second pair rotated
-                p = np.array(self.data[i][j])
-                q = np.array(newPositions[indices.index((l,k))-1])
-                if np.linalg.norm(p - q)<upper_bound_closest_self_distance:
-                    return 0
-            elif (l,k) in [indices[0], indices[1]]:#first pair is unmoved, second pair join
-                p = np.array(self.data[i][j])
-                q = np.array(self.data[l][k])
-                if np.linalg.norm(p - q)<upper_bound_closest_self_distance:
-                    return 0
-        return 1
-
     def generate_index_intervals_to_be_rotated(self, Nmax):
         """ generates a list of index intervals, this list is shuffled and an interval list is drawn at random. if the curve is open intervals containing the end vertices to be extended with a dummy vertex are included"""
 
@@ -1031,135 +918,13 @@ class ClosedChain(ThickenedEquilateralPolygon):
         """position of the point after vertex j of strand i: Data(i, j+1), wrapping around at the end (x is not used: a closed curve has no ends)"""
         return self.data[i][(j + 1)%len(self.data[i])]
 
-    def check_curvature_constraint(self, ind, newPos):
-        """True if the turning angle at both ends of the rotated interval stays below 2*deltaStar"""
-        cosLimit = m.cos(2*self.deltaStar)      # the turning angle exceeds 2*deltaStar exactly when cos(angle) < cos(2*deltaStar)
-        if turning_angle_exceeds(self.prev_point(ind[0][0], ind[0][1]), self.data[ind[0][0]][ind[0][1]], newPos[0], cosLimit):
-            return False
-        if turning_angle_exceeds(newPos[-1], self.data[ind[-1][0]][ind[-1][1]], self.next_point(ind[-1][0], ind[-1][1]), cosLimit):
-            return False
-        return True
+    def prev_neighbour(self, i, j):
+        """Data(i, j-1), wrapping around at the start (a closed curve always has a neighbour)."""
+        return self.data[i][j-1]
 
-    def make_curve_polyFile(self, fileLocation, fileName):
-        """Set of concatenated data points is written as a .poly file to be read with Houdini"""
-
-        r=str(round(204.0/255.0, 3))
-        g=str(round(12.0/255.0, 3))
-        b=str(round(204.0/255.0, 3))
-
-        r_1=str(round(14.0/255.0, 3))
-        g_1=str(round(120.0/255.0, 3))
-        b_1=str(round(204.0/255.0, 3))
-
-        point_count = 1
-        f1 = open(str(fileLocation)+str(fileName)+".poly", "w")
-        f1.write('POINTS''\n')
-        for i in range(len(self.data)):
-            for j in range(len(self.data[i])):
-                if point_count%2==0:
-                    f1.write(str(point_count)+': '+str(dec.Decimal(str(round(self.data[i][j][0],5))))+' '+str(dec.Decimal(str(round(self.data[i][j][1],5))))+' '+str(dec.Decimal(str(round(self.data[i][j][2],5))))+' c('+r+','+g+','+b+',1.0)'+'\n')
-                else:
-                    f1.write(str(point_count)+': '+str(dec.Decimal(str(round(self.data[i][j][0],5))))+' '+str(dec.Decimal(str(round(self.data[i][j][1],5))))+' '+str(dec.Decimal(str(round(self.data[i][j][2],5))))+' c('+r_1+','+g_1+','+b_1+',1.0)'+'\n')
-                point_count = point_count + 1
-
-        point_count = 1
-        poly_count = 1
-        f1.write('POLYS')
-        for i in range(len(self.data)):
-            f1.write('\n'+str(poly_count)+': ')
-            for j in range(len(self.data[i])):
-                f1.write(str(point_count)+' ')
-                point_count+=1
-            f1.write(str(point_count - len(self.data[i]))+'')#bit of a hack
-            poly_count+=1
-
-        f1.write('\nEND')
-        f1.close()
-
-    def generates_list_arc_radii(self):
-        """Creates list floats. Each float gives the radius of the arc defined by the bezier triangle at that index."""
-        result = []
-        for i in range(len(self.data)):
-            strand = []
-            for j in range(len(self.data[i])):
-                p0 = self.data[i][j-1]
-                p = self.data[i][j]
-                p1 = self.data[i][(j+1)%len(self.data[i])]
-                strand.append(returnCircleRadiusForControlTriangle(p0, p, p1))
-            result.append(strand)
-        return result
-
-    def generate_closest_distances(self, withInfo = False):
-        """Creates list of floats. Each float is the closest to another point on the polygonal curve separtaed by at least a skipped integer."""
-
-        if withInfo:
-            print('\n')
-        result = []
-        tmpList = []
-        for i in range(len(self.data)):
-            #skippedInteger = int(0.5*m.pi/np.arcsin(0.5*self.edgeLength/self.R))
-            #print(skippedInteger)
-            for j in range(len(self.data[i])):
-                d = 1000.0
-                ind = (0,0)
-                for l in range(i, len(self.data)):
-                    stInd = j if l==i else 0
-                    for k in range(stInd, len(self.data[l])):
-                        if l==i and ((k - j < self.skippedInteger) or (len(self.data[i]) - k < self.skippedInteger - j)):
-                            #print('for', (i,j), 'skipping ', (l,k))
-                            continue
-                        dtmp = np.linalg.norm(self.data[i][j] - self.data[l][k])
-                        if dtmp<d:
-                            d = dtmp
-                            ind = (l,k)
-                    if d<1000.0:
-                        tmpList.append([(i,j), ind, d])
-                result.append(d)
-        if withInfo:
-            tmpList.sort(key=lambda x:x[2])
-            for data in tmpList:
-                print(data)
-            print('\n')
-        return result
-
-    # -- from TubularGeometry; closed version uses endCaps=False.
-    def evaluate_embedded_measures(self):
-        """ Function computes the embedded measures and saves them as variables of the curve"""
-
-        endCaps=False
-
-        self.V_0, self.A_0, self.C_0, self.X_0 = returnEmbeddedMeasures(self.curve_vertices, self.input_R, endCaps=endCaps)
-        return None
-
-    def evaluate_measures(self):
-        """Function computes the measures of the curveData point list with balls of radius input_R """
-
-        pointList = [pt for subList in self.curve_vertices for pt in subList]
-
-        self.V, self.A, self.C, self.X=mm.morph_(pointList, self.input_R)
-
-        return None
-
-    def update_geometry(self, data, curve_vertices, size_measures):
-        """updates self with attributes of geometry.
-           measures, embedded_measures = [], length
-        """
-
-        self.data = data
-        self.curve_vertices = curve_vertices
-
-        #measures = size_measures
-        self.V, self.A, self.C, self.X = size_measures
-
-        return None
-
-    def __copy__(self):
-        """Returns a copy of the object and a number of variables."""
-
-        newone = type(self)()
-        for item in ['configType', 'other object attributes to pass over to new instance', 'etc']:
-            newone.__dict__[item] = self.__dict__[item]
-        return newone
+    def next_neighbour(self, i, j):
+        """Data(i, j+1), wrapping around at the end (a closed curve always has a neighbour)."""
+        return self.data[i][(j + 1)%len(self.data[i])]
 
 
 # -- fixed endpoints; easy extension of OpenChain.

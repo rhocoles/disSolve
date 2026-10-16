@@ -419,14 +419,12 @@ def email_completion(db_name, experimentID, pdf_files=''):
 def do():
     parser = argparse.ArgumentParser()
     parser.add_argument("name")
+    parser.add_argument("experimentID", type=int)
     args = parser.parse_args()
 
+    experimentID = args.experimentID
+    print(experimentID)
     DB_FILE = f"{args.name}.db"
-    db = sqlite3.connect(DB_FILE)
-    cur = db.cursor()
-    cur.execute("SELECT id FROM _experiments ORDER BY startDate DESC LIMIT 1")
-    experimentID = cur.fetchone()[0]
-    db.close()
 
     load_experiment_data(experimentID)
     load_curve_data(experimentID, args.name)
@@ -439,7 +437,7 @@ def do():
 
     #evaluate results
     output_name = 'results_'+str(experimentID) #maybe structure_rs_eta...
-    pm.execute_notebook('evaluate_experiment.ipynb',output_name+'.ipynb',  parameters={"name" : args.name})
+    pm.execute_notebook('evaluate_experiment.ipynb',output_name+'.ipynb',  parameters={"name" : args.name, "experimentID" : experimentID})
     subprocess.run(["jupyter", "nbconvert", "--to", "pdf", output_name+".ipynb", "--no-input"])
     results_attachment = [output_name+'.pdf']
     
@@ -451,10 +449,10 @@ def do():
     db.close()
     output_name = 'temp_stats_'+str(experimentID)
     if temperature_description ==  "temp_scan":
-        pm.execute_notebook('evaluate_experiment_temperature_scan.ipynb', output_name+'.ipynb',  parameters={"name" : args.name})
+        pm.execute_notebook('evaluate_experiment_temperature_scan.ipynb', output_name+'.ipynb',  parameters={"name" : args.name, "experimentID" : experimentID})
     else:
         load_temperature_data(experimentID, args.name)
-        pm.execute_notebook('evaluate_experiment_temperatures.ipynb', output_name+'.ipynb',  parameters={"name" : args.name})
+        pm.execute_notebook('evaluate_experiment_temperatures.ipynb', output_name+'.ipynb',  parameters={"name" : args.name, "experimentID" : experimentID})
     subprocess.run(["jupyter", "nbconvert", "--to", "pdf", output_name+".ipynb", "--no-input"])
 
     #email results

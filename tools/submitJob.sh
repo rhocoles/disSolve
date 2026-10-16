@@ -21,9 +21,9 @@ numberParallelProcesses=5
 
 
 #annealing parameters for the decreasing temp part
-numberSecondsPerTemp=1520
-numberOfRounds=8
-T_top=0.04
+numberSecondsPerTemp=7800
+numberOfRounds=6
+T_top=0.01
 T_bot=0.004
 temp_options=(geometric linear temp_scan)
 temperature_description=${temp_options[0]}
@@ -143,7 +143,7 @@ $overlapRatio $eta $alpha $T_top $T_bot $temperature_description $numberSecondsP
 if [ \$? -ne 0 ]; then
     python3 ${tools_dir}/mark_experiment_failed.py $structure $experimentID
 else
-    python3.9 evaluate_experiment.py $structure
+    python3.9 evaluate_experiment.py $structure $experimentID
 fi
 "
 

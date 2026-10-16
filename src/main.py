@@ -1,8 +1,3 @@
-#iIn your repo, main.py needs three edits to match:
-#- Drop the evaluate_curve_vertices call.
-#- Call update_geometry(tmp_curve_data, size_measures).
-#- Delete the Biarc print at line 318, which would otherwise fail on geometryType.
-
 import numpy as np
 np.set_printoptions(legacy='1.21')
 import random
@@ -205,16 +200,15 @@ def do_move_and_check_energy_and_accept_or_reject(geometry, dMin, dMax, T):
         geoClass.save_data(geometry.data, './','jammedGeometry')
         sys.exit()
     else:
-        tmpGeometryData =  moveReturn
+        tmp_curve_data =  moveReturn
     
-    tmpCurveVertices = geometry.evaluate_curve_vertices(tmpGeometryData)
-    deltaE, size_measures = geometry.evaluate_energy_difference(tmpCurveVertices) #if ThreadedBeads size_measures =  measures if Biarc size_measures = (measures, embedded_measures, length)    
+    deltaE, size_measures = geometry.evaluate_energy_difference(tmp_curve_data)
     deltaE = deltaE/geometry.length
 
     #accept or reject energy if increased
     (tmp_0or1, prob) = acceptOrReject(deltaE, T)#calculate probability of achieving deltaE choose via random number generation
     if tmp_0or1==1:
-        geometry.update_geometry(tmpGeometryData, tmpCurveVertices, size_measures)
+        geometry.update_geometry(tmp_curve_data, size_measures)
             
     return (tmp_0or1, prob, deltaE)
 
@@ -320,8 +314,6 @@ if rank==0:
     print("(dMin, dMax) = ", (dMin, dMax))
 
 if rank ==0:
-    if geometry.geometryType == "Biarc":
-        print("strand lengths ", list(map(lambda x: round(x, 5), geometry.evaluate_curve_length(geometry.data))))
     print("curve is of ", len(geometry.data), "strands and each strand has ", [len(geometry.data[i]) for i in range(len(geometry.data))])
     print("edge length is fixed to ", geometry.edgeLength)
     print("computing with ball radius ", geometry.input_R)
@@ -348,7 +340,7 @@ if temperature_description != "temp_scan":
     if rank==0:
         print("annealing within temperature range [",T_bot, ",", T_top, "],  ", size, " systems are exchanged every ", allgather_time, "seconds,  over a total number of ", numberOfRounds, " rounds")
         print("\nexperiment ends in ", round(allgather_time*numberOfRounds/(60*60*24), 3), " days")
-        writeData([size, overlapRatio, eta, geometry.R, geometry.r_s, geometry.input_R] + geometry.coefficients + [geoClass.countNumberOf(geometry.curve_vertices), geometry.edgeLength, T_bot, T_top, numberOfRounds, allgather_time, structure, alpha, time.time(), temperature_description, initial_configs], 'experimentData')
+        writeData([size, overlapRatio, eta, geometry.R, geometry.r_s, geometry.input_R] + geometry.coefficients + [geoClass.countNumberOf(geometry.data), geometry.edgeLength, T_bot, T_top, numberOfRounds, allgather_time, structure, alpha, time.time(), temperature_description, initial_configs], 'experimentData')
         writeData([str(temp_of_bin(k)) for k in range(size)], 'temperatures')
         if path_to_BIG_db:
             update_BIG_metadata_early(structure, experimentID, overlapRatio, eta, T_bot, T_top, temperature_description, numberOfRounds, allgather_time, initial_configs, size)
@@ -445,7 +437,7 @@ if temperature_description=="temp_scan":
     if rank==0:
         print("Annealing within temperature range [",T_bot, ",", T_top, "].\nTemperature interval is divided into ", numberOfRounds//2, " fixed temperatures, all ", size, " parallel systems anneal at the same fixed temperature. \nEach temperature is annealed for ", allgather_time, "seconds,  over a total number of ", numberOfRounds, "rounds (temperature interval is visited twice).")
         print("\nexperiment ends in ", round(allgather_time*numberOfRounds/(60*60*24), 3), " days")
-        writeData([size, overlapRatio, eta, geometry.R, geometry.r_s, geometry.input_R] + geometry.coefficients + [geoClass.countNumberOf(geometry.curve_vertices), geometry.edgeLength, T_bot, T_top, numberOfRounds, allgather_time, structure, alpha, time.time(), temperature_description, initial_configs], 'experimentData')
+        writeData([size, overlapRatio, eta, geometry.R, geometry.r_s, geometry.input_R] + geometry.coefficients + [geoClass.countNumberOf(geometry.data), geometry.edgeLength, T_bot, T_top, numberOfRounds, allgather_time, structure, alpha, time.time(), temperature_description, initial_configs], 'experimentData')
         writeData([str(temp_of_round(k)) for k in range(numberOfRounds)], 'temperatures')
         if path_to_BIG_db:
             update_BIG_metadata_early(structure, experimentID, overlapRatio, eta, T_bot, T_top, temperature_description, numberOfRounds, allgather_time, initial_configs, size)
