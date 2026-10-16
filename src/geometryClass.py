@@ -936,7 +936,7 @@ class ThreadedBeads():
 
         self.upper_bound_closest_self_distance = self.compute_upper_bound_closest_self_distance(rTube, self.compute_average_edge_length())
 
-        nMax = int(0.3*min([len(self.data[i]) for i in range(len(self.data))]))
+        nMax = int(0.5*min([len(self.data[i]) for i in range(len(self.data))]))
 
         self.index_intervals_to_be_rotated = self.generate_index_intervals_to_be_rotated(nMax)
 

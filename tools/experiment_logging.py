@@ -507,32 +507,44 @@ def do():
     parser = argparse.ArgumentParser()
     parser.add_argument("name", nargs="?", default=None)
     parser.add_argument("experimentID", nargs="?", type=int, default=None)
-    parser.add_argument("--action", choices=["move", "mark", "failed", "delete-all"])
+    parser.add_argument("--action", choices=["move", "mark", "failed", "delete-all", "make-local-BIG"])
     args = parser.parse_args()
 
     if args.name is None:
         get_overview_of_directory()
         return None
 
-    if args.experimentID is None:
+    if args.experimentID is None and args.action is None:
         sys.exit(f"Give an experimentID to look at, e.g. python3 experiment_logging.py {args.name} <experimentID>")
         return None
+    elif args.experimentID is not None:
+        get_current_local_experiment_update(args.name, args.experimentID)
 
-    get_current_local_experiment_update(args.name, args.experimentID)
-
-    if args.action is None:
+    if args.action is None:# happens after update of that experimentID or if no experimentID is given
         
         print("\nNo action given. Options:")
         print("  --action move                move local db data to BIG, delete local, keep polyFile zip, add copy of curve in BIG polyFile directory")
         print("  --action mark                update status as completed in BIG, but do not copy the data from local db, keep polyFiles")
         print("  --action failed              update status as failed in BIG, delete local data from local db and delete polyFiles")
         print("  --action delete-all          delete all experimentID data from both local db and BIG db, delete polyFiles")
-        return
+        print("  --action make-local-BIG      data is moved from local db to a new BIG, if experimentID is given only this experiment is moved")
+        return None
 
+    if args.action == "make-local-BIG" and args.experimentID is None:
+        confirm = input(f"\nProceed with '{args.action}' for entire local database? [y/N] ")
+        if confirm.lower() != "y":
+            print("Cancelled.")
+            return None
+        make_local_db_BIG(args.name)
+        return None
+    else:
+        print(f"\nProceeding with '{args.action}' requires specific experiment ID")
+        return None
+    
     confirm = input(f"\nProceed with '{args.action}' for experiment {args.experimentID}? [y/N] ")
     if confirm.lower() != "y":
         print("Cancelled.")
-        return
+        return None
 
     if args.action == "move":
         move_data_to_BIG(args.name, args.experimentID)
@@ -542,6 +554,8 @@ def do():
         delete_data_maintain_record(args.name, args.experimentID)
     elif args.action == "delete-all":
         delete_data_and_record(args.name, args.experimentID)
+    elif args.action == "make-local-BIG":
+        make_local_db_BIG(args.name, experimentID=args.experimentID)
     
     return None
 

@@ -2,10 +2,11 @@
 
 #structure='circle36'
 #structure='circleTB' #label the directory with the edgelength line 37
-#structure='hopfLink40'
+structure='hopfLink40'
 #structure='trefoil50'
-structure='openChain50_dl0_25'
-path_to_BIG_db="/Users/harmon/Results/BIG_DIR/"${structure}"_BIG.db"
+#structure='openChain50_dl0_25'
+
+path_to_BIG_db="/HOME1/users/personal/coles/BIG_databases/"${structure}"_BIG.db"
 if [ ! -f "$path_to_BIG_db" ]; then
     echo "the variable path_to_BIG_db is none"
     path_to_BIG_db=""
@@ -17,23 +18,22 @@ overlapRatio=0.1
 eta=0.05
 alpha=0.0
 
-numberParallelProcesses=6
-
+numberParallelProcesses=10
 
 #annealing parameters for the decreasing temp part
-numberSecondsPerTemp=1520
-numberOfRounds=8
-T_top=0.04
-T_bot=0.004
+numberSecondsPerTemp=6480
+numberOfRounds=200
+T_top=0.018
+T_bot=0.011117
 temp_options=(geometric linear temp_scan)
 temperature_description=${temp_options[0]}
 
 
 # how the initial curve configuration is chosen - independent of whether an experimentID is being claimed from BIG
-basic_initial_curve=true   # true: use the basic embedded structure; false: use curve_config_source/curve_ids below
+basic_initial_curve=false   # true: use the basic embedded structure; false: use curve_config_source/curve_ids below
 
-curve_config_source="local"   # "local" or "BIG" - only used when basic_initial_curve=false
-curve_ids=""        # comma-separated curveIDs WITHOUT SPACES e.g. "104,205,301", OR one of "min-energy" | "last-frame-per-rank" | "min-energy-per-rank" - only used when basic_initial_curve=false
+curve_config_source="BIG"   # "local" or "BIG" - only used when basic_initial_curve=false
+curve_ids="2423"        # comma-separated curveIDs WITHOUT SPACES e.g. "104,205,301", OR one of "min-energy" | "last-frame-per-rank" | "min-energy-per-rank" - only used when basic_initial_curve=false
 
 
 
@@ -59,16 +59,17 @@ print(row[0], row[1])
     echo beginning experiment ${experimentID} with parameters rs=${overlapRatio} and eta=${eta}
 fi
 
-
 # check current director
 tools_dir=${PWD}
-src_dir=/Users/harmon/programming/disSolve/program/current/disSolve/src
+src_dir="$(dirname "$tools_dir")/src"
+
+echo $tools_dir
+echo $src_dir
 
 # first make an directory .../structure/gridPoint../
-LOCAL_TESTING_DIR=/Users/harmon/Results/local_experiments/
+LOCAL_TESTING_DIR=/LOCAL/coles/testing/
 dir=${LOCAL_TESTING_DIR}${structure}/${structure}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3}
 echo $dir
-echo 
 
 mkdir -p $dir
 cd $dir
@@ -138,12 +139,12 @@ echo "Initialised experiment on $(hostname) with rs=$overlapRatio, eta=$eta, exp
 #screen -ls; echo "---"; ps aux | grep -iE 'main\.py|mpirun|prterun' | grep -v grep
 screenExperimentName=${structure:0:3}${structure: -2}_rs0_${overlapRatio:2:3}_eta0_${eta:2:3}
 screen -S ${screenExperimentName} -L -d -m bash -lc "
-mpirun -np $numberParallelProcesses python3.9 main.py \
+mpirun -np $numberParallelProcesses ~/miniconda3/bin/python3 main.py \
 $overlapRatio $eta $alpha $T_top $T_bot $temperature_description $numberSecondsPerTemp $numberOfRounds $curve_config_source $curve_config_ids $structure $experimentID \"$path_to_BIG_db\"
 if [ \$? -ne 0 ]; then
     python3 ${tools_dir}/mark_experiment_failed.py $structure $experimentID
 else
-    python3.9 evaluate_experiment.py $structure
+    python3 evaluate_experiment.py $structure
 fi
 "
 
