@@ -2,9 +2,9 @@
 
 #structure='circle36'
 #structure='circleTB' #label the directory with the edgelength line 37
-structure='hopfLink40'
+#structure='hopfLink40'
 #structure='trefoil50'
-#structure='openChain50_dl0_25'
+structure='openChain50_dl0_25'
 
 path_to_BIG_db="/HOME1/users/personal/coles/BIG_databases/"${structure}"_BIG.db"
 if [ ! -f "$path_to_BIG_db" ]; then
@@ -18,22 +18,22 @@ overlapRatio=0.1
 eta=0.05
 alpha=0.0
 
-numberParallelProcesses=10
+numberParallelProcesses=12
 
 #annealing parameters for the decreasing temp part
-numberSecondsPerTemp=6480
-numberOfRounds=200
-T_top=0.018
-T_bot=0.011117
+numberSecondsPerTemp=10800
+numberOfRounds=40
+T_top=0.003
+T_bot=0.001
 temp_options=(geometric linear temp_scan)
 temperature_description=${temp_options[0]}
 
 
 # how the initial curve configuration is chosen - independent of whether an experimentID is being claimed from BIG
-basic_initial_curve=false   # true: use the basic embedded structure; false: use curve_config_source/curve_ids below
+basic_initial_curve=true   # true: use the basic embedded structure; false: use curve_config_source/curve_ids below
 
-curve_config_source="BIG"   # "local" or "BIG" - only used when basic_initial_curve=false
-curve_ids="2423"        # comma-separated curveIDs WITHOUT SPACES e.g. "104,205,301", OR one of "min-energy" | "last-frame-per-rank" | "min-energy-per-rank" - only used when basic_initial_curve=false
+curve_config_source=""   # "local" or "BIG" - only used when basic_initial_curve=false
+curve_ids=""        # comma-separated curveIDs WITHOUT SPACES e.g. "104,205,301", OR one of "min-energy" | "last-frame-per-rank" | "min-energy-per-rank" - only used when basic_initial_curve=false
 
 
 
@@ -144,7 +144,7 @@ $overlapRatio $eta $alpha $T_top $T_bot $temperature_description $numberSecondsP
 if [ \$? -ne 0 ]; then
     python3 ${tools_dir}/mark_experiment_failed.py $structure $experimentID
 else
-    python3 evaluate_experiment.py $structure
+    python3 evaluate_experiment.py $structure $experimentID
 fi
 "
 
